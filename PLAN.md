@@ -5,9 +5,14 @@
 > another AI agent (or by Gary driving opencode from his phone).
 
 ## 0. Status at handoff (2026-06-04)
-- **Scaffold created.** Stack chosen, project structure laid out, core ported from a
-  working vanilla prototype (`../opencode-remote`) that is **validated against the live
-  opencode API** (streaming chat, tools, permissions all confirmed working).
+- **Scaffold created + builds green.** `npm install`, `npx tsc --noEmit`, and `npm run build`
+  all pass. The dev server runs and the **Projects screen renders live data** from the opencode
+  API (verified headless). Stack chosen, structure laid out, core ported from a working vanilla
+  prototype (`../opencode-remote`) that is **validated against the live opencode API**
+  (streaming chat, tools, permissions all confirmed working there).
+- **Next concrete step (P1 finish):** run `npm run dev` and verify the *chat* screen live —
+  send a message, confirm streamed reply + a tool call render in the React port (logic is a
+  direct port of the validated prototype but not yet exercised on-device).
 - A separate, **running prototype** lives at `../opencode-remote` (a PWA + Node proxy on
   `http://gg-45-ferngrove:4500`). Use it as the reference implementation — its
   `public/app.js` contains proven logic for every API interaction.
