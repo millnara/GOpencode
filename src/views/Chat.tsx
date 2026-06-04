@@ -54,6 +54,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [sheet, setSheet] = useState<null | "model" | "agent" | "session">(null);
   const [wedged, setWedged] = useState(false);
   const [turnMeta, setTurnMeta] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<{ name: string; dataUrl: string; mime: string }[]>([]);
   const [offline, setOffline] = useState(!navigator.onLine);
   const contentRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -131,7 +132,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     try { await api.abort(dir, sid); } catch { /* */ }
     const text = lastUserText() || "Continue.";
     setBusy(true); wasBusy.current = true;
-    await api.promptAsync(dir, sid, model, agent, text, variant, sysPrompt || null);
+    await api.promptAsync(dir, sid, model, agent, text, variant, sysPrompt || null, attachments.length ? attachments : null);
   };
 
   const handleEvent = (ev: OcEvent) => {
@@ -227,10 +228,19 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [dir, sid]);
 
+  const pickFile = async () => {
+    try {
+      const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+      const image = await Camera.getPhoto({ resultType: CameraResultType.DataUrl, source: CameraSource.Prompt, quality: 80 });
+      if (image.dataUrl) setAttachments(prev => [...prev, { name: "image.jpg", dataUrl: image.dataUrl!, mime: "image/jpeg" }]);
+    } catch { /* cancelled */ }
+  };
+
   const send = async () => {
     const text = input.trim(); if (!text || busy || !model) return;
     setInput(""); if (taRef.current) taRef.current.style.height = "auto";
     setPending(text); setBusy(true); wasBusy.current = true;
+    setAttachments([]);
     haptic();
     try {
       let cmdName: string | null = null;
@@ -286,6 +296,14 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
       if (r?.url) { await navigator.clipboard.writeText(r.url); ensure("info_" + Date.now()).parts.push({ id: "i", type: "text", text: "Link copied to clipboard" } as any); force(); }
     } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Share failed: " + (e.message || e) } as any); force(); }
   };
+  const revertTo = async (messageID: string) => {
+    setBusy(true); wasBusy.current = true;
+    try { await api.revertSession(dir, sid, messageID); } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Revert failed: " + (e.message || e) } as any); force(); }
+    const hist = await api.messages(dir, sid);
+    msgs.current = new Map();
+    for (const m of hist) msgs.current.set(m.info.id, { info: m.info, parts: m.parts || [] });
+    setBusy(false); force();
+  };
 
   const groups = [...msgs.current.values()].sort((a, b) => (a.info.time?.created || 0) - (b.info.time?.created || 0));
   const modelLabel = model?.modelID || "model";
@@ -319,7 +337,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
 
       <div className="content" ref={contentRef}>
         <div className="msgs">
-          {groups.map((g) => <MessageView key={g.info.id} group={g} />)}
+          {groups.map((g) => <MessageView key={g.info.id} group={g} onRevert={revertTo} />)}
           {pending && <div className="msg user"><div className="bubble">{pending}</div></div>}
           {perms.map((req) => <PermissionPrompt key={req.id} req={req} onRespond={(r) => respond(req.id, r)} />)}
           {questions.map((qr) => (
@@ -359,13 +377,25 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         )}
         <button style={{ fontSize:11, color:"var(--faint)", padding:"2px 6px", alignSelf:"flex-start" }}
           onClick={() => setShowAdvanced(!showAdvanced)}>{showAdvanced ? "▴ hide advanced" : "▾ advanced"}</button>
+        {attachments.length > 0 && (
+          <div style={{ display: "flex", gap: 6, padding: "0 4px 6px", flexWrap: "wrap" }}>
+            {attachments.map((a, i) => (
+              <div key={i} style={{ position: "relative", width: 56, height: 56, borderRadius: 10, overflow: "hidden", border: "1px solid var(--border)" }}>
+                <img src={a.dataUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <button style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,.7)", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff" }}
+                  onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="box">
+          <button className="iconbtn" style={{ color: "var(--muted)", fontSize: 22, flex: "none" }} onClick={pickFile}>📷</button>
           <textarea
             ref={taRef} rows={1} placeholder={t("chat.placeholder")} value={input}
             onChange={(e) => { setInput(e.target.value); const el = e.target; el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 160) + "px"; }}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }}
           />
-          <button className={"send" + (busy ? " stop" : "")} disabled={busy || !input.trim()} onClick={send}>↑</button>
+          <button className={"send" + (busy ? " stop" : "")} disabled={busy || (!input.trim() && !attachments.length)} onClick={send}>↑</button>
         </div>
       </div>
 

@@ -59,3 +59,32 @@ export async function loadPairing(): Promise<Pairing | null> {
 export async function clearPairing(): Promise<void> {
   try { await Preferences.remove({ key: PAIRING_KEY }); } catch { /* ignore */ }
 }
+
+const PIN_KEY = "gopencode.pinHash";
+
+async function sha256(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function setPin(pin: string): Promise<void> {
+  try { await Preferences.set({ key: PIN_KEY, value: await sha256(pin) }); } catch { /* */ }
+}
+
+export async function checkPin(pin: string): Promise<boolean> {
+  try {
+    const { value } = await Preferences.get({ key: PIN_KEY });
+    if (!value) return true;
+    return (await sha256(pin)) === value;
+  } catch { return true; }
+}
+
+export async function hasPin(): Promise<boolean> {
+  try { const { value } = await Preferences.get({ key: PIN_KEY }); return !!value; } catch { return false; }
+}
+
+export async function clearPin(): Promise<void> {
+  try { await Preferences.remove({ key: PIN_KEY }); } catch { /* */ }
+}

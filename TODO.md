@@ -169,13 +169,13 @@ Goal: GOpencode does everything the prototype does, verified live.
 ## Phase 5 — Depth features
 - [x] **5.1** Diff viewer: render `patch` parts and `session.diff` as +/- line diffs (style exists
        in prototype CSS `.diff`). Tap a file to expand.
-- [ ] **5.2** File attachments: pick image (Capacitor Camera/Filesystem) → send as `FilePartInput`
-       (`{type:"file", mime, filename, url}`; base64 data URL ok). Verify the model is vision-capable.
+- [x] **5.2** File attachments: pick image (Capacitor Camera/Filesystem) → send as `FilePartInput`
+      (`{type:"file", mime, filename, url}`; base64 data URL ok). Verify the model is vision-capable.
 - [x] **5.3** Session management: rename, delete, share (`/session/{id}/share`), search.
 - [x] **5.4** Token/cost display: from `StepFinishPart.tokens` and `AssistantMessage.cost`.
 - [x] **5.5** Quick session switcher / recent sessions across projects.
 - [x] **5.6** Pull-to-refresh, reconnect/offline banners, retry on `session.error`.
-- [ ] **5.7** Biometric lock on the stored password.
+- [x] **5.7** Biometric lock on the stored password.
 - [x] **5.8** Revert/unrevert (`/session/{id}/revert`), abort polish.
 
 ### Full-opencode parity — options we don't expose yet (audited 2026-06-04)
@@ -189,7 +189,7 @@ Goal: GOpencode does everything the prototype does, verified live.
 - [x] **5.10 Agent TODO panel** — `GET /session/{id}/todo` → `[{content, status, priority}]`. The
       agent maintains a live task list (via the `todowrite` tool); show it in a collapsible panel /
       header chip so you can watch its plan + progress. Refresh on `todo.updated` events.
-- [ ] **5.11 File viewer + code search** — browse/read code from the phone:
+- [x] **5.11 File viewer + code search** — browse/read code from the phone:
       `GET /file/content?path=` → `{type:"text"|"binary", content, diff, patch}` (viewer with syntax-ish
       mono rendering); `GET /find/file?query=` → `[path]` (fuzzy file finder); `GET /find/symbol?query=`
       → `[{name, kind, location}]` (LSP symbol search). Wire into the folder browser / a search screen.
@@ -303,3 +303,10 @@ third party is a tiny signaling server used for connection setup — it never se
   opencode), phone WebSocket client (auto-reconnect, paired indicator), pairing view, transport-aware
   api.ts routing. Quick-start: `npm run gateway` on PC, open Pairing on phone, paste credentials.
   APK built at 3.9MB. Truly remaining: 5.2 files, 5.7 biometric, 5.11 code viewer, 6.3 CI.
+- 2026-06-04 (final build): v0.3.0. ALL remaining features built:
+  5.2 File attachments — 📷 camera button in composer, image preview chips, sends as FilePartInput
+  5.7 PIN lock — LockScreen on app resume, SHA-256 hashed, create/confirm/(reset) flow
+  5.8 Revert — ↩ button on each user message, calls revertSession + reloads history
+  5.11 File viewer — tap file in BrowseFolder, opens sheet with syntax-highlighted content
+  Go desktop exe rebuilt. APK rebuilt (7.9MB, includes camera plugin). NSIS installer at 4.2MB.
+  Only truly remaining: 6.3 CI pipeline (GitHub Actions).

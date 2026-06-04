@@ -3,7 +3,7 @@ Unicode true
 !include "MUI2.nsh"
 
 Name "GOpencode"
-OutFile "dist\GOpencode-Setup-0.2.0.exe"
+OutFile "dist\GOpencode-Setup-0.3.0.exe"
 InstallDir "$PROGRAMFILES64\GOpencode"
 RequestExecutionLevel admin
 
@@ -36,7 +36,7 @@ Section "Install"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "UninstallString" "$INSTDIR\uninstall.exe"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "DisplayIcon" "$INSTDIR\icon.ico"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "Publisher" "GOpencode"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "DisplayVersion" "0.2.0"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "DisplayVersion" "0.3.0"
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "NoModify" 1
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "NoRepair" 1
 

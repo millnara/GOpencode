@@ -65,9 +65,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ model, agent, parts: [{ type: "text", text }] }),
     }),
-  promptAsync: async (dir: string, id: string, model: ModelRef, agent: string, text: string, variant?: string | null, system?: string | null) => {
+  promptAsync: async (dir: string, id: string, model: ModelRef, agent: string, text: string, variant?: string | null, system?: string | null, files?: { name: string; mime: string; dataUrl: string }[] | null) => {
     try {
-      const body: Record<string, any> = { model, agent, parts: [{ type: "text", text }] };
+      const parts: any[] = [{ type: "text", text }];
+      if (files) {
+        for (const f of files) {
+          parts.push({ type: "file", filename: f.name, mime: f.mime, url: f.dataUrl });
+        }
+      }
+      const body: Record<string, any> = { model, agent, parts };
       if (variant) body.variant = variant;
       if (system) body.system = system;
 
@@ -111,6 +117,7 @@ export const api = {
     req(`/question/${id}/reject?${qd(dir)}`, { method: "POST" }),
   diff: (dir: string, id: string) => req<{ file: string; before: string; after: string }[]>(`/session/${id}/diff?${qd(dir)}`),
   todo: (dir: string, id: string) => req<{ content: string; status: string; priority: string }[]>(`/session/${id}/todo?${qd(dir)}`),
+  fileContent: (dir: string, path: string) => req<{ type: string; content: string }>(`/file/content?path=${encodeURIComponent(path)}&${qd(dir)}`),
 };
 
 export function defaultModel(prov: ProvidersResponse | null): ModelRef | null {

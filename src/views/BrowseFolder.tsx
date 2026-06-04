@@ -13,10 +13,21 @@ function parentDir(p: string): string | null {
   return parent;
 }
 
+function highlightSyntax(code: string): string {
+  return code
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/(\/\/.*)/g, '<span class="syn-c">$1</span>')
+    .replace(/("(?:[^"\\]|\\.)*")/g, '<span class="syn-s">$1</span>')
+    .replace(/('(?:[^'\\]|\\.)*')/g, '<span class="syn-s">$1</span>')
+    .replace(/\b(import|export|const|let|var|function|return|if|else|for|while|class|interface|type|enum|async|await|try|catch|throw|new|extends|implements|default|from|as|of|in|typeof|instanceof|void|null|undefined|true|false|this|super|switch|case|break|continue|do|static|public|private|protected|readonly|abstract)\b/g, '<span class="syn-k">$1</span>')
+    .replace(/\b(\d+\.?\d*)\b/g, '<span class="syn-n">$1</span>');
+}
 export default function BrowseFolder({ startDir }: { startDir?: string }) {
   const [dir, setDir] = useState(startDir || "");
   const [entries, setEntries] = useState<FileEntry[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<{ path: string; name: string } | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
 
   useEffect(() => {
     if (!dir) {
@@ -45,6 +56,15 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
     .slice(0, 20);
 
   const par = dir ? parentDir(dir) : null;
+
+  const viewFile = async (name: string) => {
+    setViewing({ path: name, name });
+    setFileContent(null);
+    try {
+      const r = await api.fileContent(dir, name);
+      setFileContent(r.content || "");
+    } catch (e: any) { setFileContent("// Error: " + (e.message || e)); }
+  };
 
   return (
     <div className="screen" style={{ position: "relative" }}>
@@ -83,13 +103,14 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
             <>
               <div className="section-label">Files ({files.length})</div>
               {files.map((f) => (
-                <div key={f.absolute} className="card" style={{ cursor: "default" }}>
+                <button key={f.absolute} className="card" onClick={() => viewFile(f.name)}>
                   <div className="avatar" style={{ background: "linear-gradient(135deg,#2a2a30,#1d1d22)", fontSize: 14 }}>📄</div>
                   <div className="meta">
                     <div className="name" style={{ fontSize: 14 }}>{f.name}</div>
                     {f.ignored && <div className="desc">ignored</div>}
                   </div>
-                </div>
+                  <div className="chev">›</div>
+                </button>
               ))}
             </>
           )}
@@ -99,6 +120,23 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
         onClick={() => (location.hash = "#/p/" + b64uEnc(dir))}>
         ▶ Open opencode here
       </button>
+      {viewing && (
+        <div className="sheet-bg" onClick={(e) => { if (e.target === e.currentTarget) { setViewing(null); setFileContent(null); } }}>
+          <div className="sheet" style={{ maxHeight: "90%" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 18px", borderBottom: "1px solid var(--border)" }}>
+              <button className="iconbtn" onClick={() => { setViewing(null); setFileContent(null); }}>✕</button>
+              <div style={{ fontSize: 14, fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewing.name}</div>
+              <div style={{ fontSize: 11, color: "var(--faint)" }}>{dir}</div>
+            </div>
+            <div style={{ padding: 14, overflow: "auto", maxHeight: "calc(80vh - 60px)" }}>
+              {!fileContent && <div className="loading"><div className="spinner" /></div>}
+              {fileContent && (
+                <pre className="file-view" dangerouslySetInnerHTML={{ __html: highlightSyntax(fileContent) }} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

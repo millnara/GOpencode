@@ -49,6 +49,10 @@ a{color:var(--accent2)} input,select,textarea{font:inherit;-webkit-appearance:no
 .msg{padding:8px 2px}
 .msg.user{align-self:flex-end;max-width:88%}
 .msg.user .bubble{background:var(--surface);border:1px solid var(--border);border-radius:18px 18px 4px 18px;padding:11px 16px;white-space:pre-wrap;word-wrap:break-word;font-size:15px;line-height:1.5}
+.bubble-wrap{display:flex;align-items:center;gap:4px}
+.revert-btn{font-size:14px;color:var(--faint);padding:4px;border-radius:8px;opacity:0;transition:opacity .15s}
+.revert-btn:hover{color:var(--warn);background:var(--surface)}
+.bubble-wrap:hover .revert-btn{opacity:1}
 .msg.assistant{align-self:stretch;max-width:100%}
 .usertext{white-space:pre-wrap;word-wrap:break-word}
 .role{font-size:11px;color:var(--faint);margin:0 4px 4px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
@@ -170,6 +174,12 @@ a{color:var(--accent2)} input,select,textarea{font:inherit;-webkit-appearance:no
 
 /* session row */
 .card-row{display:flex;align-items:center;gap:0}
+/* file viewer */
+.file-view{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px;font-family:var(--mono);font-size:12.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word;overflow:auto;color:#c7c7cf;letter-spacing:0;margin:0}
+.syn-k{color:var(--accent2);font-weight:600}
+.syn-s{color:var(--ok)}
+.syn-c{color:var(--faint);font-style:italic}
+.syn-n{color:var(--warn)}
 /* todo panel */
 .todo-panel{border-bottom:1px solid var(--border);background:var(--surface)}
 .todo-header{display:flex;align-items:center;gap:10px;padding:10px 16px;width:100%;text-align:left}
