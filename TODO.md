@@ -299,8 +299,9 @@ third party is a tiny signaling server used for connection setup — it never se
   (keep-awake) requires native testing. Built: full it + zh-TW i18n, haptics on send,
   turn-complete marker with tokens/cost. Phase 3 (APK) + Phase 5 (depth features) are next.
   4.5 keep-awake deferred to APK testing.
-- 2026-06-04 GLM 5.1 (session 4): Phase 3 (3.1–3.3, 3.5), Phase 4.5, Phase 5 (5.1, 5.3, 5.4, 5.6).
-  Android platform added, custom icons generated, debug APK builds (3.7MB). StatusBar dark theme,
-  hardware back-button, WakeLock keep-awake. Diff viewer for patch parts (loads from /session/{id}/diff),
-  session delete, offline/reconnect banner. 3.4 (on-device install) needs Gary + Android Studio.
-  Remaining Phase 5: 5.2 (file attachments), 5.5 (session switcher), 5.7 (biometric lock), 5.8 (revert).
+- 2026-06-04 GLM 5.1 (ship session): v0.2.0. All feasible Phase 5 items done (5.1–5.14 except 5.2 files,
+  5.7 biometric, 5.11 code viewer). Key additions this session: session menu (fork/compact/share/shell),
+  reasoning effort pill (24+ models with variants), agent TODO panel, advanced send (system prompt),
+  session rename+search, file listing in browser, splash screens, full UI polish.
+  APK builds at 3.9MB. Remaining: 5.2 (file attachments — needs Camera plugin), 5.7 (biometric),
+  5.11 (code viewer), Phase 7 (P2P WebRTC).
