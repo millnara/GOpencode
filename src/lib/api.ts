@@ -55,6 +55,13 @@ export const api = {
     }),
   listDir: (dir: string) => req<FileEntry[]>(`/file?path=.&${qd(dir)}`),
   path: () => req<PathResponse>("/path"),
+  replyQuestion: (dir: string, id: string, answers: string[][]) =>
+    req(`/question/${id}/reply?${qd(dir)}`, {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    }),
+  rejectQuestion: (dir: string, id: string) =>
+    req(`/question/${id}/reject?${qd(dir)}`, { method: "POST" }),
 };
 
 /**

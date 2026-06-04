@@ -1,10 +1,11 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { api, streamEvents, defaultModel } from "../lib/api";
-import type { ModelRef, OcEvent, PermissionRequest, ProvidersResponse, Agent, Part, ProviderConfig, Command } from "../lib/types";
+import type { ModelRef, OcEvent, PermissionRequest, ProvidersResponse, Agent, Part, ProviderConfig, Command, QuestionRequest } from "../lib/types";
 import MessageView, { type Group } from "../components/MessageView";
 import PermissionPrompt from "../components/PermissionPrompt";
 import ModelSheet from "../components/ModelSheet";
 import CommandMenu from "../components/CommandMenu";
+import QuestionPrompt from "../components/QuestionPrompt";
 import { getConn } from "../lib/settings";
 import { playDone } from "../lib/sound";
 import { notifyDone } from "../lib/notify";
@@ -22,6 +23,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [input, setInput] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [perms, setPerms] = useState<PermissionRequest[]>([]);
+  const [questions, setQuestions] = useState<QuestionRequest[]>([]);
   const [providers, setProviders] = useState<ProvidersResponse | null>(null);
   const [providerConfig, setProviderConfig] = useState<ProviderConfig[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -87,6 +89,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
       case "session.error": if (p.sessionID === sid) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "⚠ " + (p.error?.name || "error") + ": " + (p.error?.data?.message || "") } as any); setBusy(false); schedule(); } break;
       case "permission.asked": if (p.sessionID === sid) setPerms((prev) => prev.find((x) => x.id === p.id) ? prev : [...prev, p]); break;
       case "permission.replied": setPerms((prev) => prev.filter((x) => x.id !== (p.id || p.permissionID))); break;
+      case "question.asked": if (p.sessionID === sid) setQuestions((prev) => prev.find((x) => x.id === p.id) ? prev : [...prev, p]); break;
+      case "question.replied": setQuestions((prev) => prev.filter((x) => x.id !== (p.id || p.questionID))); break;
       case "session.updated": if (p.info?.id === sid && p.info.title) setTitle(p.info.title); break;
     }
   };
@@ -145,6 +149,14 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     setPerms((prev) => prev.filter((x) => x.id !== id));
     try { await api.respondPermission(dir, sid, id, r); } catch { /* */ }
   };
+  const replyQuestion = async (id: string, answers: string[][]) => {
+    setQuestions((prev) => prev.filter((x) => x.id !== id));
+    try { await api.replyQuestion(dir, id, answers); } catch { /* */ }
+  };
+  const rejectQuestion = async (id: string) => {
+    setQuestions((prev) => prev.filter((x) => x.id !== id));
+    try { await api.rejectQuestion(dir, id); } catch { /* */ }
+  };
 
   const groups = [...msgs.current.values()].sort((a, b) => (a.info.time?.created || 0) - (b.info.time?.created || 0));
   const modelLabel = model?.modelID || "model";
@@ -170,6 +182,11 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           {groups.map((g) => <MessageView key={g.info.id} group={g} />)}
           {pending && <div className="msg user"><div className="bubble">{pending}</div></div>}
           {perms.map((req) => <PermissionPrompt key={req.id} req={req} onRespond={(r) => respond(req.id, r)} />)}
+          {questions.map((qr) => (
+            <QuestionPrompt key={qr.id} req={qr}
+              onReply={(answers) => replyQuestion(qr.id, answers)}
+              onReject={() => rejectQuestion(qr.id)} />
+          ))}
         </div>
       </div>
 
