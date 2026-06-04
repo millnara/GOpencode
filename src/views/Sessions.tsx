@@ -19,6 +19,10 @@ export default function Sessions({ dir }: { dir: string }) {
     catch (e: any) { setErr(String(e.message || e)); }
   };
 
+  const deleteSession = async (id: string) => {
+    try { await api.deleteSession(dir, id); load(); } catch (e: any) { setErr(String(e.message || e)); }
+  };
+
   return (
     <div className="screen" style={{ position: "relative" }}>
       <div className="topbar">
@@ -31,14 +35,18 @@ export default function Sessions({ dir }: { dir: string }) {
           {!sessions && !err && <div className="loading"><div className="spinner" /></div>}
           {sessions && sessions.length === 0 && <div className="empty">{t("sessions.empty")}</div>}
           {(sessions || []).map((s) => (
-            <button key={s.id} className="card" onClick={() => (location.hash = "#/p/" + b64uEnc(dir) + "/s/" + s.id)}>
-              <div className="avatar">💬</div>
-              <div className="meta">
-                <div className="name">{s.title || "Untitled session"}</div>
-                <div className="desc">{timeAgo(s.time?.updated || s.time?.created)}</div>
-              </div>
-              <div className="chev">›</div>
-            </button>
+            <div key={s.id} className="card-row">
+              <button className="card" style={{ flex: 1 }} onClick={() => (location.hash = "#/p/" + b64uEnc(dir) + "/s/" + s.id)}>
+                <div className="avatar">💬</div>
+                <div className="meta">
+                  <div className="name">{s.title || "Untitled session"}</div>
+                  <div className="desc">{timeAgo(s.time?.updated || s.time?.created)}</div>
+                </div>
+                <div className="chev">›</div>
+              </button>
+              <button className="iconbtn" style={{ color: "var(--danger)", padding: "0 10px" }}
+                onClick={(e) => { e.stopPropagation(); if (confirm("Delete this session?")) deleteSession(s.id); }}>✕</button>
+            </div>
           ))}
         </div>
       </div>

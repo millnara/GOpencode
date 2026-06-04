@@ -48,6 +48,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [sheet, setSheet] = useState<null | "model" | "agent">(null);
   const [wedged, setWedged] = useState(false);
   const [turnMeta, setTurnMeta] = useState<string | null>(null);
+  const [offline, setOffline] = useState(!navigator.onLine);
   const contentRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -196,6 +197,14 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   }, [busy]);
 
   useEffect(() => {
+    const on = () => setOffline(false);
+    const off = () => setOffline(true);
+    addEventListener("online", on);
+    addEventListener("offline", off);
+    return () => { removeEventListener("online", on); removeEventListener("offline", off); };
+  }, []);
+
+  useEffect(() => {
     const onVis = async () => {
       if (document.visibilityState !== "visible") return;
       try {
@@ -274,6 +283,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         <div className="title">{title}<div className="sub">{dir.split(/[\\/]/).pop()}</div></div>
         {busy && <button className="iconbtn" style={{ color: "var(--danger)" }} onClick={abort}>■</button>}
       </div>
+
+      {offline && <div style={{ background: "var(--danger)", color: "#fff", textAlign: "center", padding: "4px 8px", fontSize: 12, fontWeight: 600 }}>Offline — reconnecting…</div>}
 
       <div className="content" ref={contentRef}>
         <div className="msgs">

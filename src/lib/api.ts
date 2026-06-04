@@ -34,6 +34,7 @@ export const api = {
     req<Session>(`/session?${qd(dir)}`, { method: "POST", body: JSON.stringify(title ? { title } : {}) }),
   session: (dir: string, id: string) => req<Session>(`/session/${id}?${qd(dir)}`),
   messages: (dir: string, id: string) => req<MessageWithParts[]>(`/session/${id}/message?${qd(dir)}`),
+  deleteSession: (dir: string, id: string) => req(`/session/${id}?${qd(dir)}`, { method: "DELETE" }),
   send: (dir: string, id: string, model: ModelRef, agent: string, text: string) =>
     req(`/session/${id}/message?${qd(dir)}`, {
       method: "POST",
@@ -74,6 +75,7 @@ export const api = {
     }),
   rejectQuestion: (dir: string, id: string) =>
     req(`/question/${id}/reject?${qd(dir)}`, { method: "POST" }),
+  diff: (dir: string, id: string) => req<{ file: string; before: string; after: string }[]>(`/session/${id}/diff?${qd(dir)}`),
 };
 
 /**

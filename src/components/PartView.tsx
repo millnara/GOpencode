@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { md } from "../lib/markdown";
-import type { Part, ToolPart } from "../lib/types";
+import { api } from "../lib/api";
+import type { Part, ToolPart, PatchPart } from "../lib/types";
+import { getConn } from "../lib/settings";
 
 function toolTitle(tool: string, input: Record<string, any> = {}): string {
   const v = (k: string) => input[k];
@@ -43,6 +46,67 @@ function ToolView({ part }: { part: ToolPart }) {
   );
 }
 
+function PatchDiff({ part }: { part: PatchPart }) {
+  const files = part.files || [];
+  const [expanded, setExpanded] = useState(false);
+  const [diffs, setDiffs] = useState<{ file: string; before: string; after: string }[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    if (diffs) { setExpanded(!expanded); return; }
+    setLoading(true);
+    try {
+      const d = await api.diff("", part.sessionID);
+      const fileNames = files.map((f) => f.split(/[\\/]/).pop() || f);
+      const matched = d.filter((df) => fileNames.includes(df.file));
+      setDiffs(matched.length ? matched : d.slice(0, files.length));
+      setExpanded(true);
+    } catch { setDiffs([]); setExpanded(true); }
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <button className="pill" style={{ margin: "6px 0", cursor: "pointer" }} onClick={load}>
+        📝 {files.length} file(s) changed {expanded ? "▾" : "▸"}
+      </button>
+      {loading && <div className="spinner" style={{ width: 14, height: 14, margin: 4 }} />}
+      {expanded && diffs?.map((d, i) => {
+        const name = d.file.split(/[\\/]/).pop() || d.file;
+        const bLines = (d.before || "").split("\n");
+        const aLines = (d.after || "").split("\n");
+        const bSet = new Set(bLines);
+        const aSet = new Set(aLines);
+        const lines: { type: string; text: string }[] = [];
+        const max = Math.max(bLines.length, aLines.length);
+        for (let li = 0; li < max; li++) {
+          const b = bLines[li] ?? "";
+          const a = aLines[li] ?? "";
+          if (b === a) { lines.push({ type: "ctx", text: a }); }
+          else {
+            if (b) lines.push({ type: "del", text: b });
+            if (a) lines.push({ type: "add", text: a });
+          }
+        }
+        const changes = lines.filter((l) => l.type !== "ctx");
+        const adds = changes.filter((l) => l.type === "add").length;
+        const dels = changes.filter((l) => l.type === "del").length;
+        return (
+          <details key={i} className="collapsible" style={{ marginBottom: 4 }}>
+            <summary style={{ fontSize: 12 }}>{name} <span style={{ color: "var(--ok)" }}>+{adds}</span> <span style={{ color: "var(--danger)" }}>−{dels}</span></summary>
+            <div className="body diff-view">
+              {changes.slice(0, 30).map((l, j) => (
+                <div key={j} className={"diff-line " + l.type}><span className="diff-marker">{l.type === "add" ? "+" : "−"}</span>{l.text}</div>
+              ))}
+              {changes.length > 30 && <div className="diff-line ctx" style={{ textAlign: "center" }}>… {changes.length - 30} more</div>}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function PartView({ part, role }: { part: Part; role: string }) {
   const p = part as any;
   switch (part.type) {
@@ -64,12 +128,7 @@ export default function PartView({ part, role }: { part: Part; role: string }) {
     }
     case "tool": return <ToolView part={part as ToolPart} />;
     case "file": return <div className="pill" style={{ margin: "6px 0" }}>📎 {p.filename || p.url || "file"}</div>;
-    case "patch": return (
-      <details className="collapsible">
-        <summary>📝 Edited {(p.files?.length || 0)} file(s)</summary>
-        <div className="body tool-io">{(p.files || []).join("\n")}</div>
-      </details>
-    );
+    case "patch": return <PatchDiff part={p as PatchPart} />;
     case "agent": return <div className="role">→ agent: {p.name}</div>;
     case "subtask": return (
       <details className="collapsible">

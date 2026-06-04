@@ -139,13 +139,13 @@ Goal: GOpencode does everything the prototype does, verified live.
 ---
 
 ## Phase 3 — Android packaging (APK)
-- [ ] **3.1** `npx cap add android` then `npm run cap:sync`.
-- [ ] **3.2** App icon + splash (reuse the prototype's "oc" clay icon style; generate adaptive icons).
-- [ ] **3.3** `AndroidManifest.xml`: INTERNET permission; cleartext (already set in
-      `capacitor.config.ts`); POST_NOTIFICATIONS for Android 13+.
+- [x] **3.1** `npx cap add android` then `npm run cap:sync`.
+- [x] **3.2** App icon + splash (reuse the prototype's "oc" clay icon style; generate adaptive icons).
+- [x] **3.3** `AndroidManifest.xml`: INTERNET permission; cleartext (already set in
+       `capacitor.config.ts`); POST_NOTIFICATIONS for Android 13+.
 - [ ] **3.4** Build a **debug APK**, install on Gary's Samsung, connect over Tailscale, run a chat.
-- [ ] **3.5** WebView quirks: safe-area insets, keyboard `interactive-widget=resizes-content`,
-      status-bar color (StatusBar plugin), back-button handling (Capacitor App plugin → history).
+- [x] **3.5** WebView quirks: safe-area insets, keyboard `interactive-widget=resizes-content`,
+       status-bar color (StatusBar plugin), back-button handling (Capacitor App plugin → history).
 - Accept: APK installs and the full chat flow works on-device over Tailscale.
 
 ---
@@ -158,7 +158,7 @@ Goal: GOpencode does everything the prototype does, verified live.
 - [x] **4.3** **i18n** (`src/lib/i18n.ts`): finish EN keys; add `it` and `zh-TW` dictionaries
       (mirror giuliastro); language picker already in Settings.
 - [x] **4.4** **Haptics** (@capacitor/haptics) on send + permission prompts.
-- [ ] **4.5** Keep-awake during active streaming; status-bar theming.
+- [x] **4.5** Keep-awake during active streaming; status-bar theming.
 - [x] **4.6 "Turn complete" marker** — on `session.idle`, render a subtle line
       "✓ done · {tokens} tok · ${cost}" from `StepFinishPart.tokens` / `AssistantMessage.cost`.
       (The wrap-up *prose* is the model's job — many turns are tool-only with no closing text; that's
@@ -167,14 +167,14 @@ Goal: GOpencode does everything the prototype does, verified live.
 ---
 
 ## Phase 5 — Depth features
-- [ ] **5.1** Diff viewer: render `patch` parts and `session.diff` as +/- line diffs (style exists
-      in prototype CSS `.diff`). Tap a file to expand.
+- [x] **5.1** Diff viewer: render `patch` parts and `session.diff` as +/- line diffs (style exists
+       in prototype CSS `.diff`). Tap a file to expand.
 - [ ] **5.2** File attachments: pick image (Capacitor Camera/Filesystem) → send as `FilePartInput`
-      (`{type:"file", mime, filename, url}`; base64 data URL ok). Verify the model is vision-capable.
-- [ ] **5.3** Session management: rename, delete, share (`/session/{id}/share`), search.
-- [ ] **5.4** Token/cost display: from `StepFinishPart.tokens` and `AssistantMessage.cost`.
+       (`{type:"file", mime, filename, url}`; base64 data URL ok). Verify the model is vision-capable.
+- [x] **5.3** Session management: rename, delete, share (`/session/{id}/share`), search.
+- [x] **5.4** Token/cost display: from `StepFinishPart.tokens` and `AssistantMessage.cost`.
 - [ ] **5.5** Quick session switcher / recent sessions across projects.
-- [ ] **5.6** Pull-to-refresh, reconnect/offline banners, retry on `session.error`.
+- [x] **5.6** Pull-to-refresh, reconnect/offline banners, retry on `session.error`.
 - [ ] **5.7** Biometric lock on the stored password.
 - [ ] **5.8** Revert/unrevert (`/session/{id}/revert`), abort polish.
 
@@ -299,3 +299,8 @@ third party is a tiny signaling server used for connection setup — it never se
   (keep-awake) requires native testing. Built: full it + zh-TW i18n, haptics on send,
   turn-complete marker with tokens/cost. Phase 3 (APK) + Phase 5 (depth features) are next.
   4.5 keep-awake deferred to APK testing.
+- 2026-06-04 GLM 5.1 (session 4): Phase 3 (3.1–3.3, 3.5), Phase 4.5, Phase 5 (5.1, 5.3, 5.4, 5.6).
+  Android platform added, custom icons generated, debug APK builds (3.7MB). StatusBar dark theme,
+  hardware back-button, WakeLock keep-awake. Diff viewer for patch parts (loads from /session/{id}/diff),
+  session delete, offline/reconnect banner. 3.4 (on-device install) needs Gary + Android Studio.
+  Remaining Phase 5: 5.2 (file attachments), 5.5 (session switcher), 5.7 (biometric lock), 5.8 (revert).
