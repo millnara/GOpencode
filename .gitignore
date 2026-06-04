@@ -8,3 +8,5 @@ ios
 .DS_Store
 .vite
 gateway/node_modules
+desktop/gopencode.exe
+desktop/dist
