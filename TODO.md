@@ -90,6 +90,21 @@ Goal: GOpencode does everything the prototype does, verified live.
 - [ ] **2.4** Confirm `streamEvents()` (fetch SSE) works against the server **directly** with the
       `Authorization` header (not just through the dev proxy).
 - [ ] **2.5** Persist last project + session (Preferences) and restore on launch; honor deep links.
+- [ ] **2.6 Fire-and-forget send (kills false "Failed to fetch")** — IMPORTANT mobile fix.
+  - Problem: a blocking `POST /session/{id}/message` holds one HTTP request open for the *entire*
+    turn (minutes). When the phone sleeps/switches networks, that request dies and the browser
+    throws `Failed to fetch` → a scary false "Send failed", even though the server got the message
+    and the turn ran fine.
+  - Fix: send via **`POST /session/{id}/prompt_async`** (same body as `/message`; returns ~12ms,
+    empty body). The turn runs server-side and streams back over the existing `/event` SSE.
+    Add `api.promptAsync(dir,id,model,agent,text)` in `src/lib/api.ts`; use it in `Chat.tsx send()`
+    instead of `api.send`. Don't `setBusy(false)` on the await resolving — let `session.idle` do it.
+  - Treat send errors matching `/Failed to fetch|NetworkError|aborted/` as a soft warning
+    ("connection blip — reply will appear on reconnect"), not a hard failure.
+  - On `visibilitychange` → visible (and on SSE reconnect), **reload message history** to catch up
+    on anything missed while backgrounded, and clear `busy` if the last assistant turn has a
+    `step-finish`. Port from prototype `onSendError()` / `refreshChat()` in `../opencode-remote/public/app.js`.
+  - Accept: lock the phone mid-turn, unlock → the reply is there; no false "Send failed".
 
 ---
 
