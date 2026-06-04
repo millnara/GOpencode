@@ -260,3 +260,7 @@ third party is a tiny signaling server used for connection setup — it never se
   - 2.5 Persist/restore last route on launch
   - 2.8 Wedged-session detection + ⟳ Resume banner
   Build green. All verified against live server. Phase 3 (APK) is next logical step.
+- 2026-06-04 GLM 5.1 (session 3): Phase 4 substantially complete (4.1–4.4, 4.6). Only 4.5
+  (keep-awake) requires native testing. Built: full it + zh-TW i18n, haptics on send,
+  turn-complete marker with tokens/cost. Phase 3 (APK) + Phase 5 (depth features) are next.
+  4.5 keep-awake deferred to APK testing.
