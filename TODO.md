@@ -143,7 +143,7 @@ Goal: GOpencode does everything the prototype does, verified live.
 - [x] **3.2** App icon + splash (reuse the prototype's "oc" clay icon style; generate adaptive icons).
 - [x] **3.3** `AndroidManifest.xml`: INTERNET permission; cleartext (already set in
        `capacitor.config.ts`); POST_NOTIFICATIONS for Android 13+.
-- [ ] **3.4** Build a **debug APK**, install on Gary's Samsung, connect over Tailscale, run a chat.
+- [x] **3.4** Build a **debug APK**, install on Gary's Samsung, connect over Tailscale, run a chat.
 - [x] **3.5** WebView quirks: safe-area insets, keyboard `interactive-widget=resizes-content`,
        status-bar color (StatusBar plugin), back-button handling (Capacitor App plugin → history).
 - Accept: APK installs and the full chat flow works on-device over Tailscale.
