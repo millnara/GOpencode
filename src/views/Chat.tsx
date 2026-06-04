@@ -391,12 +391,11 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         <button style={{ fontSize:11, color:"var(--faint)", padding:"2px 6px", alignSelf:"flex-start" }}
           onClick={() => setShowAdvanced(!showAdvanced)}>{showAdvanced ? "▴ hide advanced" : "▾ advanced"}</button>
         {attachments.length > 0 && (
-          <div style={{ display: "flex", gap: 6, padding: "0 4px 6px", flexWrap: "wrap" }}>
+          <div className="att-preview">
             {attachments.map((a, i) => (
-              <div key={i} style={{ position: "relative", width: 56, height: 56, borderRadius: 10, overflow: "hidden", border: "1px solid var(--border)" }}>
-                <img src={a.dataUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                <button style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,.7)", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff" }}
-                  onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}>✕</button>
+              <div key={i} className="att-thumb">
+                <img src={a.dataUrl} alt="" />
+                <button className="att-remove" onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}>✕</button>
               </div>
             ))}
           </div>

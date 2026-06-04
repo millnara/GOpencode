@@ -19,3 +19,13 @@ export function b64uDec(s: string): string {
   s = s.replace(/-/g, "+").replace(/_/g, "/");
   return new TextDecoder().decode(Uint8Array.from(atob(s), (c) => c.charCodeAt(0)));
 }
+
+export function hashColor(s: string): [string, string] {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  const hue = ((h % 360) + 360) % 360;
+  return [
+    `hsl(${hue} 55% 50%)`,
+    `hsl(${(hue + 30) % 360} 60% 40%)`,
+  ];
+}

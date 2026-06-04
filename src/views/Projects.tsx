@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import type { Project } from "../lib/types";
-import { b64uEnc, leaf, timeAgo } from "../lib/util";
+import { b64uEnc, leaf, timeAgo, hashColor } from "../lib/util";
 import { isConfigured } from "../lib/settings";
 import { t } from "../lib/i18n";
 
@@ -38,9 +38,10 @@ export default function Projects() {
           {projects && filtered.length === 0 && <div className="empty">{t("projects.empty")}</div>}
           {filtered.map((p) => {
             const name = leaf(p.worktree);
+            const [c1, c2] = hashColor(p.worktree);
             return (
               <button key={p.id} className="card" onClick={() => (location.hash = "#/p/" + b64uEnc(p.worktree))}>
-                <div className="avatar">{name.slice(0, 2)}</div>
+                <div className="avatar" style={{ background: `linear-gradient(135deg,${c1},${c2})` }}>{name.slice(0, 2)}</div>
                 <div className="meta">
                   <div className="name">{name}</div>
                   <div className="desc">{(p.vcs || "folder") + " · " + timeAgo(p.time?.updated)}</div>
