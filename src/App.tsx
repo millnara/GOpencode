@@ -6,6 +6,7 @@ import Settings from "./views/Settings";
 import BrowseFolder from "./views/BrowseFolder";
 import BottomNav from "./components/BottomNav";
 import { b64uDec } from "./lib/util";
+import { saveLastRoute, loadLastRoute, isConfigured } from "./lib/settings";
 
 type Route =
   | { name: "projects" }
@@ -37,7 +38,21 @@ function parse(): Route {
 export default function App() {
   const [route, setRoute] = useState<Route>(parse());
   useEffect(() => {
-    const h = () => setRoute(parse());
+    if (!location.hash || location.hash === "#/" || location.hash === "#") {
+      loadLastRoute().then((last) => {
+        if (last && last !== "#/" && last !== "#" && isConfigured()) {
+          location.hash = last;
+        }
+      });
+    }
+    const h = () => {
+      const r = parse();
+      setRoute(r);
+      const hash = location.hash;
+      if (hash && hash !== "#/" && hash !== "#" && r.name !== "settings") {
+        saveLastRoute(hash);
+      }
+    };
     addEventListener("hashchange", h);
     return () => removeEventListener("hashchange", h);
   }, []);

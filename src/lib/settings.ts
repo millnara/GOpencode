@@ -39,3 +39,12 @@ export function getConn(): Conn { return cache; }
 export function isConfigured(): boolean {
   return !!getConn().baseUrl && (getConn().baseUrl === "/api" || !!getConn().password);
 }
+
+const LAST_KEY = "gopencode.lastRoute";
+
+export async function saveLastRoute(route: string): Promise<void> {
+  try { await Preferences.set({ key: LAST_KEY, value: route }); } catch { /* ignore */ }
+}
+export async function loadLastRoute(): Promise<string | null> {
+  try { const { value } = await Preferences.get({ key: LAST_KEY }); return value || null; } catch { return null; }
+}
