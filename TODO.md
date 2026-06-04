@@ -222,15 +222,10 @@ third party is a tiny signaling server used for connection setup — it never se
 - [x] **7.2 Pairing + auth** — phone enters URL + room + password (or scans QR data); persisted via
       Preferences; auto-reconnect on restart. `src/views/Pairing.tsx`.
 - [x] **7.3 Signaling** — embedded in gateway (WS server doubles as signaling). No separate service needed.
-- [ ] **7.4 ICE / NAT traversal** — public **STUN** (e.g. Google) for address discovery; **TURN**
-- [ ] **7.4 ICE / NAT traversal** — public **STUN** (e.g. Google) for address discovery; **TURN**
-      fallback (self-host `coturn`, or document a provider) for symmetric NATs — relays ciphertext only.
-- [ ] **7.5 Phone transport shim** — an `RTCPeerConnection` + `RTCDataChannel` client plus a
-      **fetch-like adapter** so `src/lib/api.ts` (`req`, `streamEvents`) runs **unchanged** over the
-      data channel — swap the transport, not the call sites. Auto-pick path: LAN-direct → STUN → TURN.
-- [ ] **7.6 Connection UX + fallbacks** — a status indicator (connecting / direct / relayed / offline),
-      graceful reconnect, and keep the existing direct-HTTP/proxy path as an optional advanced transport
-      (so power users can still point at a plain URL / Tailscale if they want).
+- [x] **7.4 ICE / NAT traversal** — public **STUN** (e.g. Google) for address discovery; **TURN**
+- [x] **7.4 ICE / NAT traversal** — public **STUN** (e.g. Google) for address discovery; **TURN**
+- [x] **7.5 Phone transport shim** — an `RTCPeerConnection` + `RTCDataChannel` client plus a
+- [x] **7.6 Connection UX + fallbacks** — a status indicator (connecting / direct / relayed / offline),
 - [ ] **7.7 Stall watchdog (server-side auto-heal)** — the gateway is always-on, so it owns turn
       health. Poll recently-active sessions (or watch events); when a turn is in-progress but has had
       **no activity for >180s and no tool is running** (a hung model call — opencode leaves these

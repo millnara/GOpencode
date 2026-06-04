@@ -24,7 +24,8 @@ type Gateway struct {
 	server *http.Server
 	mu     sync.Mutex
 	phone  *websocket.Conn
-	status string // "idle", "paired", "error"
+	status string
+	webrtc *WebRTCTransport
 }
 
 func NewGateway(cfg Config) *Gateway {
@@ -110,6 +111,26 @@ func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				g.mu.Unlock()
 				id, _ := msg["id"].(float64)
 				conn.WriteJSON(map[string]interface{}{"id": id, "type": "authed"})
+
+				// Offer WebRTC upgrade for P2P
+				wr := NewWebRTCTransport(func(data []byte) {
+					// When phone sends over data channel, treat as JSON-RPC
+					conn.WriteMessage(websocket.TextMessage, data)
+				})
+				g.mu.Lock()
+				g.webrtc = wr
+				g.mu.Unlock()
+				offer, err := wr.CreateOffer(
+					func(sdp string) error {
+						return conn.WriteJSON(map[string]interface{}{"type": "webrtc-offer", "sdp": sdp})
+					},
+					func(candidate string) error {
+						return conn.WriteJSON(map[string]interface{}{"type": "webrtc-candidate", "candidate": candidate})
+					},
+				)
+				if err == nil && offer != "" {
+					conn.WriteJSON(map[string]interface{}{"type": "webrtc-offer", "sdp": offer})
+				}
 			} else {
 				id, _ := msg["id"].(float64)
 				conn.WriteJSON(map[string]interface{}{"id": id, "error": "auth failed"})
@@ -119,6 +140,30 @@ func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		id, _ := msg["id"].(float64)
 		msgType, _ := msg["type"].(string)
+
+		if msgType == "webrtc-answer" {
+			sdp, _ := msg["sdp"].(string)
+			g.mu.Lock()
+			wr := g.webrtc
+			g.mu.Unlock()
+			if wr != nil && sdp != "" {
+				if err := wr.SetRemoteDescription(sdp); err != nil {
+					log.Printf("webrtc: set remote desc error: %v", err)
+				}
+			}
+			continue
+		}
+
+		if msgType == "webrtc-candidate" {
+			cand, _ := msg["candidate"].(string)
+			g.mu.Lock()
+			wr := g.webrtc
+			g.mu.Unlock()
+			if wr != nil && cand != "" {
+				wr.AddICECandidate(cand)
+			}
+			continue
+		}
 
 		if msgType == "sse-start" {
 			stop := make(chan struct{})

@@ -8,7 +8,7 @@ import CommandMenu from "../components/CommandMenu";
 import QuestionPrompt from "../components/QuestionPrompt";
 import TodoPanel from "../components/TodoPanel";
 import { getConn } from "../lib/settings";
-import { isConnected } from "../lib/transport";
+import { isConnected, isP2P } from "../lib/transport";
 import { playDone } from "../lib/sound";
 import { notifyDone } from "../lib/notify";
 import { t } from "../lib/i18n";
@@ -328,7 +328,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     <div className="screen">
       <div className="topbar">
         <button className="iconbtn" onClick={() => history.length > 1 ? history.back() : (location.hash = "#/")}>‹</button>
-        <div className="title">{title}<div className="sub">{dir.split(/[\\/]/).pop()}{isConnected() ? "  ·  gateway" : ""}</div></div>
+        <div className="title">{title}<div className="sub">{dir.split(/[\\/]/).pop()}{isP2P() ? "  ·  P2P" : isConnected() ? "  ·  gateway" : ""}</div></div>
         {busy && <button className="iconbtn" style={{ color: "var(--danger)" }} onClick={abort}>■</button>}
         {!busy && <button className="iconbtn" onClick={() => setSheet("session")}>⋮</button>}
       </div>
