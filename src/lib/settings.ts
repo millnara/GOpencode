@@ -46,3 +46,16 @@ export async function saveLastRoute(route: string): Promise<void> {
 export async function loadLastRoute(): Promise<string | null> {
   try { const { value } = await Preferences.get({ key: LAST_KEY }); return value || null; } catch { return null; }
 }
+
+export interface Pairing { url: string; room: string; pw: string; }
+const PAIRING_KEY = "gopencode.pairing";
+
+export async function savePairing(p: Pairing): Promise<void> {
+  try { await Preferences.set({ key: PAIRING_KEY, value: JSON.stringify(p) }); } catch { /* ignore */ }
+}
+export async function loadPairing(): Promise<Pairing | null> {
+  try { const { value } = await Preferences.get({ key: PAIRING_KEY }); return value ? JSON.parse(value) : null; } catch { return null; }
+}
+export async function clearPairing(): Promise<void> {
+  try { await Preferences.remove({ key: PAIRING_KEY }); } catch { /* ignore */ }
+}

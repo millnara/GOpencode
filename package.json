@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "cap:sync": "npm run build && cap sync",
-    "cap:android": "npm run build && cap sync && cap open android"
+    "cap:android": "npm run build && cap sync && cap open android",
+    "gateway": "cd gateway && node index.js"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

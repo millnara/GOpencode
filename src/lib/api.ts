@@ -1,4 +1,5 @@
 import { getConn } from "./settings";
+import { isConnected, request as wsRequest, subscribeSSE } from "./transport";
 import type {
   Project, Session, MessageWithParts, ProvidersResponse, Agent, OcEvent, ModelRef,
   ConfigProvidersResponse, Command, FileEntry, PathResponse,
@@ -13,7 +14,19 @@ function url(path: string): string {
   const base = getConn().baseUrl.replace(/\/$/, "");
   return base + path;
 }
+
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  if (isConnected()) {
+    const method = opts.method || "GET";
+    let body = undefined;
+    if (opts.body) {
+      try { body = JSON.parse(opts.body as string); } catch { body = undefined; }
+    }
+    const r = await wsRequest(method, path, body);
+    if (r.status >= 400) throw new Error(`HTTP ${r.status}`);
+    return r.body as T;
+  }
+
   const r = await fetch(url(path), {
     ...opts,
     headers: { "content-type": "application/json", ...authHeader(), ...(opts.headers || {}) },
@@ -25,6 +38,7 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const t = await r.text();
   return (t ? JSON.parse(t) : null) as T;
 }
+
 const qd = (dir: string) => "directory=" + encodeURIComponent(dir);
 
 export const api = {
@@ -56,6 +70,12 @@ export const api = {
       const body: Record<string, any> = { model, agent, parts: [{ type: "text", text }] };
       if (variant) body.variant = variant;
       if (system) body.system = system;
+
+      if (isConnected()) {
+        await wsRequest("POST", `/session/${id}/prompt_async?${qd(dir)}`, body);
+        return true;
+      }
+
       const r = await fetch(url(`/session/${id}/prompt_async?${qd(dir)}`), {
         method: "POST",
         headers: { "content-type": "application/json", ...authHeader() },
@@ -93,54 +113,51 @@ export const api = {
   todo: (dir: string, id: string) => req<{ content: string; status: string; priority: string }[]>(`/session/${id}/todo?${qd(dir)}`),
 };
 
-/**
- * Stream the opencode global event bus via SSE using fetch() + ReadableStream,
- * so we can attach the Authorization header (EventSource can't). Returns an abort fn.
- */
-export function streamEvents(dir: string, onEvent: (e: OcEvent) => void): () => void {
-  const ctrl = new AbortController();
-  (async () => {
-    while (!ctrl.signal.aborted) {
-      try {
-        const r = await fetch(url(`/event?${qd(dir)}`), {
-          headers: { Accept: "text/event-stream", ...authHeader() },
-          signal: ctrl.signal,
-        });
-        if (!r.ok || !r.body) throw new Error("event stream " + r.status);
-        const reader = r.body.getReader();
-        const dec = new TextDecoder();
-        let buf = "";
-        while (!ctrl.signal.aborted) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buf += dec.decode(value, { stream: true });
-          let idx;
-          while ((idx = buf.indexOf("\n\n")) >= 0) {
-            const chunk = buf.slice(0, idx);
-            buf = buf.slice(idx + 2);
-            for (const line of chunk.split("\n")) {
-              const m = line.match(/^data:\s?(.*)$/);
-              if (m) { try { onEvent(JSON.parse(m[1])); } catch { /* ignore */ } }
-            }
-          }
-        }
-      } catch {
-        if (ctrl.signal.aborted) return;
-        await new Promise((res) => setTimeout(res, 1500)); // reconnect backoff
-      }
-    }
-  })();
-  return () => ctrl.abort();
+export function defaultModel(prov: ProvidersResponse | null): ModelRef | null {
+  const connected = Array.isArray(prov?.connected) ? prov!.connected : [];
+  if (!connected.length) return null;
+  const first = connected[0];
+  const models = Object.keys(first?.models || prov?.all?.[first.id]?.models || {});
+  if (!models.length) return null;
+  const pref = models.find((m) => m.includes("gpt-5") || m.includes("sonnet") || m.includes("claude")) || models[0];
+  return { providerID: first.id, modelID: pref };
 }
 
-/** Pick a sensible default model from /provider's connected list. */
-export function defaultModel(p: ProvidersResponse): ModelRef {
-  const ids = Array.isArray(p.connected) ? p.connected.map((x) => x.id) : Object.keys(p.connected || {});
-  const first = ids[0];
-  if (first) return { providerID: first, modelID: p.default?.[first] || Object.keys(p.all?.[first]?.models || {})[0] || "" };
-  return { providerID: "opencode", modelID: "minimax-m3-free" };
-}
-export function connectedProviders(p: ProvidersResponse) {
-  const ids = Array.isArray(p.connected) ? p.connected.map((x) => x.id) : Object.keys(p.connected || {});
-  return ids.map((id) => ({ id, name: p.all?.[id]?.name || id, models: p.all?.[id]?.models || {} }));
+export function streamEvents(dir: string, onEvent: (ev: OcEvent) => void): () => void {
+  if (isConnected()) {
+    return subscribeSSE("/event", dir, onEvent);
+  }
+
+  let abort = new AbortController();
+  let stopped = false;
+  const stop = () => { stopped = true; abort.abort(); };
+
+  const run = async () => {
+    const u = url(`/event?${qd(dir)}`);
+    const h = authHeader();
+    try {
+      const r = await fetch(u, { headers: { ...h, Accept: "text/event-stream" }, signal: abort.signal });
+      const reader = r.body?.getReader();
+      if (!reader) return;
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (!stopped) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("data:")) {
+            try { onEvent(JSON.parse(trimmed.slice(5).trim())); } catch { /* */ }
+          }
+        }
+      }
+    } catch {
+      if (!stopped) setTimeout(() => { if (!stopped) run(); }, 3000);
+    }
+  };
+  run();
+  return stop;
 }

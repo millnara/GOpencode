@@ -4,21 +4,25 @@ import Sessions from "./views/Sessions";
 import Chat from "./views/Chat";
 import Settings from "./views/Settings";
 import BrowseFolder from "./views/BrowseFolder";
+import Pairing from "./views/Pairing";
 import BottomNav from "./components/BottomNav";
 import { b64uDec } from "./lib/util";
-import { saveLastRoute, loadLastRoute, isConfigured } from "./lib/settings";
+import { saveLastRoute, loadLastRoute, isConfigured, loadPairing, savePairing } from "./lib/settings";
+import { connect, disconnect } from "./lib/transport";
 
 type Route =
   | { name: "projects" }
   | { name: "sessions"; dir: string }
   | { name: "chat"; dir: string; sid: string }
   | { name: "settings" }
-  | { name: "browse"; dir?: string };
+  | { name: "browse"; dir?: string }
+  | { name: "pairing" };
 
 function parse(): Route {
   const hash = location.hash.replace(/^#/, "") || "/";
   const p = hash.split("/").filter(Boolean);
   if (p[0] === "settings") return { name: "settings" };
+  if (p[0] === "pairing") return { name: "pairing" };
   if (p[0] === "browse") {
     if (p[1]) {
       try { return { name: "browse", dir: b64uDec(p[1]) }; } catch { /* fall through */ }
@@ -37,19 +41,30 @@ function parse(): Route {
 
 export default function App() {
   const [route, setRoute] = useState<Route>(parse());
+  const [ready, setReady] = useState(false);
+
   useEffect(() => {
-    if (!location.hash || location.hash === "#/" || location.hash === "#") {
-      loadLastRoute().then((last) => {
-        if (last && last !== "#/" && last !== "#" && isConfigured()) {
-          location.hash = last;
-        }
-      });
-    }
+    (async () => {
+      const pairing = await loadPairing();
+      if (pairing) {
+        try { await connect(pairing.url, pairing.room, pairing.pw); } catch { /* will fall back to direct */ }
+      }
+      setReady(true);
+
+      if (!location.hash || location.hash === "#/" || location.hash === "#") {
+        loadLastRoute().then((last) => {
+          if (last && last !== "#/" && last !== "#" && (isConfigured() || pairing)) {
+            location.hash = last;
+          }
+        });
+      }
+    })();
+
     const h = () => {
       const r = parse();
       setRoute(r);
       const hash = location.hash;
-      if (hash && hash !== "#/" && hash !== "#" && r.name !== "settings") {
+      if (hash && hash !== "#/" && hash !== "#" && r.name !== "settings" && r.name !== "pairing") {
         saveLastRoute(hash);
       }
     };
@@ -57,12 +72,15 @@ export default function App() {
     return () => removeEventListener("hashchange", h);
   }, []);
 
+  if (!ready) return <div className="screen"><div className="loading"><div className="spinner" /></div></div>;
+
   let view: JSX.Element;
   switch (route.name) {
     case "sessions": view = <Sessions dir={route.dir} />; break;
     case "chat": view = <Chat dir={route.dir} sid={route.sid} />; break;
     case "settings": view = <Settings />; break;
     case "browse": view = <BrowseFolder startDir={route.dir} />; break;
+    case "pairing": view = <Pairing onDone={() => (location.hash = "#/")} />; break;
     default: view = <Projects />;
   }
   const showNav = route.name === "projects" || route.name === "settings";

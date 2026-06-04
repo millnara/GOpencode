@@ -7,3 +7,4 @@ ios
 *.log
 .DS_Store
 .vite
+gateway/node_modules

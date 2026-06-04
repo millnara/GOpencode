@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getConn, saveConn, type Conn } from "../lib/settings";
 import { ensureNotifyPermission } from "../lib/notify";
 import { t, locales } from "../lib/i18n";
+import { isConnected } from "../lib/transport";
 
 function normalizeUrl(u: string): string {
   let s = u.trim();
@@ -51,6 +52,11 @@ export default function Settings() {
       <div className="content">
         <div className="list">
           {firstRun && <div className="errbox" style={{ borderColor: "var(--accent)", color: "var(--accent2)", background: "rgba(204,120,92,.08)" }}>Welcome! Enter your opencode server details to get started.</div>}
+
+          <button className="primary" style={{ background: isConnected() ? "var(--ok)" : "var(--accent)", marginBottom: 16 }}
+            onClick={() => (location.hash = "#/pairing")}>
+            {isConnected() ? "✓ Paired via gateway" : "⚡ Pair with gateway"}
+          </button>
           <label className="field">
             <span>{t("settings.server")}</span>
             <input className="search" placeholder="http://gg-45-ferngrove:4096" value={c.baseUrl} onChange={(e) => set("baseUrl", e.target.value)} autoCapitalize="off" autoCorrect="off" />
@@ -76,7 +82,7 @@ export default function Settings() {
             </select>
           </label>
           <button className="primary" onClick={save}>{saved ? "✓ Saved" : t("settings.save")}</button>
-          <div className="hint">The app talks directly to your opencode server over Tailscale. Username is usually <b>opencode</b>; password is your <code>OPENCODE_SERVER_PASSWORD</code>. For web dev, leave the URL as <code>/api</code>.</div>
+          <div className="hint">For web dev, leave the URL as <code>/api</code>. For direct connections, use <code>http://your-pc:4096</code>. Or <b>pair via gateway</b> for the simplest setup.</div>
         </div>
       </div>
     </div>
