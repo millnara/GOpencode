@@ -119,6 +119,22 @@ Goal: GOpencode does everything the prototype does, verified live.
     `sid`), render prompts above the composer exactly like permission prompts.
   - Accept: an agent question shows option cards; select + submit answers it and the turn continues;
     `multiple` and `custom` ("Other") both work.
+- [ ] **2.8 Wedged-session detection + one-tap Resume** — REQUIRED reliability fix (bit us twice).
+  - Problem: an interrupted turn (server/connection hiccup mid-turn) leaves the session wedged —
+    either a **dangling tool** (running/pending, no `step-finish`) or an **empty/incomplete assistant
+    message**, or a **trailing user message that got no reply**. opencode surfaces none of this; the
+    app just looks frozen. (Confirmed: not context — happened at 45% of the window.)
+  - On entering a chat, after loading history, detect wedged state (and re-check when not `busy`):
+    last message is `user` with no assistant reply, OR last assistant turn has no `step-finish` and
+    (a pending/running tool, or no content, or an `error`).
+  - Render a **"⟳ Resume"** banner (not just a warning). Tapping it: `POST .../abort`, then re-send
+    the **last user message text** (or "Continue.") via `prompt_async`. Auto-hide the banner once a
+    real turn starts (on `session.status` busy / first streamed part).
+  - Port from prototype `checkInterrupted()` / `resumeSession()` / `lastUserText()` in
+    `../opencode-remote/public/app.js`.
+  - Accept: kill a turn mid-flight, reopen the chat → a Resume button appears → tapping it gets the
+    agent going again. No silent freeze. (The desktop **gateway (Phase 7)** should also auto-finalize
+    an abandoned turn on reconnect so this rarely triggers.)
 
 ---
 
