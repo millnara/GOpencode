@@ -216,6 +216,16 @@ third party is a tiny signaling server used for connection setup — it never se
 - [ ] **7.6 Connection UX + fallbacks** — a status indicator (connecting / direct / relayed / offline),
       graceful reconnect, and keep the existing direct-HTTP/proxy path as an optional advanced transport
       (so power users can still point at a plain URL / Tailscale if they want).
+- [ ] **7.7 Stall watchdog (server-side auto-heal)** — the gateway is always-on, so it owns turn
+      health. Poll recently-active sessions (or watch events); when a turn is in-progress but has had
+      **no activity for >180s and no tool is running** (a hung model call — opencode leaves these
+      silent and the session locks), **auto-abort + re-issue the same prompt once**, then surface a
+      clean error if it stalls again. Running tools get a longer leash (~600s) so long builds aren't
+      killed; skip `parentID` (subagent) sessions; clear the retry counter when a turn completes.
+      This makes hangs self-heal with no user action — the app's 2.8 Resume becomes a rare fallback.
+      **Already implemented in the prototype service** (`../opencode-remote/server.js` → `watchdogTick`
+      / `checkSession`); port it into the gateway. Config knobs: `stallSeconds`, `toolStallSeconds`,
+      `everySeconds`, `maxRetries`.
 - Accept: phone on **cellular with Tailscale OFF** reaches the desktop after one QR scan; packet
   capture shows DTLS (encrypted); on home WiFi it's a direct host-candidate connection (no relay);
   pulling the relay/STUN still works on LAN.
