@@ -18,6 +18,14 @@ async function haptic(light = true) {
   } catch { /* not native */ }
 }
 
+let wakeLock: WakeLockSentinel | null = null;
+async function acquireWakeLock() {
+  try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch { /* */ }
+}
+async function releaseWakeLock() {
+  try { if (wakeLock) { await wakeLock.release(); wakeLock = null; } } catch { /* */ }
+}
+
 export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const msgs = useRef<Map<string, Group>>(new Map());
   const wasBusy = useRef(false);
@@ -181,6 +189,11 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   }, [dir, sid]);
 
   useEffect(() => { const c = contentRef.current; if (c && c.scrollHeight - c.scrollTop - c.clientHeight < 160) c.scrollTop = c.scrollHeight; });
+
+  useEffect(() => {
+    if (busy) acquireWakeLock(); else releaseWakeLock();
+    return () => { releaseWakeLock(); };
+  }, [busy]);
 
   useEffect(() => {
     const onVis = async () => {
