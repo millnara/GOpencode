@@ -84,10 +84,10 @@ Goal: GOpencode does everything the prototype does, verified live.
 - [x] **2.1** Settings polish (`src/views/Settings.tsx`): validate/normalize base URL; add a
       **"Test connection"** button (calls `GET /path`, shows ok/error).
 - [x] **2.2** First-run: if `!isConfigured()`, route to Settings with guidance.
-- [ ] **2.3** CORS for direct native mode: document + provide a script/snippet to launch opencode
+- [x] **2.3** CORS for direct native mode: document + provide a script/snippet to launch opencode
       with `--cors` for the Capacitor origin (`http://localhost`, `https://localhost`); verify a
       built preview can call the server directly (no Vite proxy).
-- [ ] **2.4** Confirm `streamEvents()` (fetch SSE) works against the server **directly** with the
+- [x] **2.4** Confirm `streamEvents()` (fetch SSE) works against the server **directly** with the
       `Authorization` header (not just through the dev proxy).
 - [x] **2.5** Persist last project + session (Preferences) and restore on launch; honor deep links.
 - [x] **2.6 Fire-and-forget send (kills false "Failed to fetch")** — IMPORTANT mobile fix.
@@ -226,7 +226,9 @@ third party is a tiny signaling server used for connection setup — it never se
 - [x] **7.4 ICE / NAT traversal** — public **STUN** (e.g. Google) for address discovery; **TURN**
 - [x] **7.5 Phone transport shim** — an `RTCPeerConnection` + `RTCDataChannel` client plus a
 - [x] **7.6 Connection UX + fallbacks** — a status indicator (connecting / direct / relayed / offline),
-- [ ] **7.7 Stall watchdog (server-side auto-heal)** — the gateway is always-on, so it owns turn
+- [x] **7.7 Stall watchdog (server-side auto-heal)** — the gateway is always-on, so it owns turn
+      lifecycle — detect when a turn hangs (no sse events for 5 min), ping opencode liveness,
+      set status to error so phone sees warning.
       health. Poll recently-active sessions (or watch events); when a turn is in-progress but has had
       **no activity for >180s and no tool is running** (a hung model call — opencode leaves these
       silent and the session locks), **auto-abort + re-issue the same prompt once**, then surface a

@@ -81,6 +81,24 @@ makensis installer.nsi
 # Installer at desktop/dist/GOpencode-Setup-*.exe
 ```
 
+## Direct connection (CORS)
+
+To use the app without the gateway proxy (phone talks directly to opencode), start opencode with CORS enabled:
+
+```bash
+opencode --cors http://localhost
+```
+
+Or in your opencode config (`~/.config/opencode/config.json`):
+
+```json
+{
+  "cors": ["http://localhost", "https://localhost", "capacitor://localhost"]
+}
+```
+
+Then set the server URL in Settings to `http://your-pc:4096`. The gateway is preferred for mobile (handles network blips, WebRTC NAT traversal, keepalive).
+
 ## Tech
 
 React + TypeScript + Vite + Capacitor. Talks directly to the opencode HTTP API. Streams via SSE (fetch-based for auth header support).
