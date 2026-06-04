@@ -17,15 +17,17 @@ import (
 )
 
 type Gateway struct {
-	cfg    Config
-	room   string
-	pw     string
-	auth   string
-	server *http.Server
-	mu     sync.Mutex
-	phone  *websocket.Conn
-	status string
-	webrtc *WebRTCTransport
+	cfg       Config
+	room      string
+	pw        string
+	auth      string
+	server    *http.Server
+	mu        sync.Mutex
+	phone     *websocket.Conn
+	status    string
+	webrtc    *WebRTCTransport
+	lastEvent time.Time
+	done      chan struct{}
 }
 
 func NewGateway(cfg Config) *Gateway {
@@ -35,10 +37,12 @@ func NewGateway(cfg Config) *Gateway {
 	rand.Read(pw)
 	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(cfg.Username+":"+cfg.Password))
 	return &Gateway{
-		cfg:  cfg,
-		room: hex.EncodeToString(room),
-		pw:   base64.RawURLEncoding.EncodeToString(pw),
-		auth: auth,
+		cfg:       cfg,
+		room:      hex.EncodeToString(room),
+		pw:        base64.RawURLEncoding.EncodeToString(pw),
+		auth:      auth,
+		lastEvent: time.Now(),
+		done:      make(chan struct{}),
 	}
 }
 
@@ -271,7 +275,9 @@ func (g *Gateway) streamSSE(conn *websocket.Conn, id float64, msg map[string]int
 					if data == "" { continue }
 					var event map[string]interface{}
 					if err := json.Unmarshal([]byte(data), &event); err == nil {
-						conn.WriteJSON(map[string]interface{}{
+						g.lastEvent = time.Now()
+	g.lastEvent = time.Now()
+	conn.WriteJSON(map[string]interface{}{
 							"id": id, "type": "sse-event", "event": event,
 						})
 					}
@@ -303,10 +309,40 @@ func (g *Gateway) Start() error {
 			g.status = "error"
 		}
 	}()
+
+	go g.watchdog()
 	return nil
 }
 
+func (g *Gateway) watchdog() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			g.mu.Lock()
+			silent := time.Since(g.lastEvent)
+			hasPhone := g.phone != nil
+			g.mu.Unlock()
+			if hasPhone && silent > 5*time.Minute {
+				log.Printf("watchdog: no SSE events for %v, checking liveness", silent.Round(time.Second))
+				resp, err := http.Get(g.cfg.OcURL + "/path")
+				if err != nil || resp == nil || resp.StatusCode >= 500 {
+					log.Printf("watchdog: opencode may be down, status set to error")
+					g.mu.Lock()
+					g.status = "error"
+					g.mu.Unlock()
+				}
+				if resp != nil { resp.Body.Close() }
+			}
+		case <-g.done:
+			return
+		}
+	}
+}
+
 func (g *Gateway) Stop() {
+	close(g.done)
 	if g.server != nil {
 		g.server.Close()
 	}
