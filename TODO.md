@@ -178,6 +178,31 @@ Goal: GOpencode does everything the prototype does, verified live.
 - [ ] **5.7** Biometric lock on the stored password.
 - [ ] **5.8** Revert/unrevert (`/session/{id}/revert`), abort polish.
 
+### Full-opencode parity — options we don't expose yet (audited 2026-06-04)
+- [ ] **5.9 Reasoning effort (model variant)** ← requested. Reasoning models expose
+      `model.variants` = `{ low|medium|high: { reasoningEffort } }` (empty `{}` = no effort levels).
+      When the selected model has variants, show an **effort pill** (Low/Med/High) next to the
+      model/agent pills in `Chat.tsx`; pass the chosen key as **`variant`** in the send body
+      (`prompt_async` / `/message` already accept `variant: string`). Persist per session like the
+      model. Hide the pill for models with no variants. (glm-5.1 has `reasoning:true` but no variants;
+      nvidia qwen/nemotron models expose low/med/high.)
+- [ ] **5.10 Agent TODO panel** — `GET /session/{id}/todo` → `[{content, status, priority}]`. The
+      agent maintains a live task list (via the `todowrite` tool); show it in a collapsible panel /
+      header chip so you can watch its plan + progress. Refresh on `todo.updated` events.
+- [ ] **5.11 File viewer + code search** — browse/read code from the phone:
+      `GET /file/content?path=` → `{type:"text"|"binary", content, diff, patch}` (viewer with syntax-ish
+      mono rendering); `GET /find/file?query=` → `[path]` (fuzzy file finder); `GET /find/symbol?query=`
+      → `[{name, kind, location}]` (LSP symbol search). Wire into the folder browser / a search screen.
+- [ ] **5.12 Session actions** — **fork** `POST /session/{id}/fork {messageID}` (branch a conversation),
+      **compact** `POST /session/{id}/summarize {providerID, modelID, auto}` (shrink context; also via
+      `/compact` command), **share** `POST /session/{id}/share` → public link (+ unshare). Surface in a
+      session ⋯ menu.
+- [ ] **5.13 Advanced send options** (collapsible, power-user) — **tools** enable/disable
+      (`tools:{name:boolean}` in the send body), **system** prompt override (`system:string`),
+      output **format** (`format:{type:"text"|"json_schema"}`). Defaults keep current behaviour.
+- [ ] **5.14 Direct shell** — `POST /session/{id}/shell {agent, model, command}` runs a shell command
+      in the session's cwd and streams output like a turn. A quick "run command" affordance.
+
 ---
 
 ## Phase 6 — Release
