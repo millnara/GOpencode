@@ -39,6 +39,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ model, agent, parts: [{ type: "text", text }] }),
     }),
+  promptAsync: async (dir: string, id: string, model: ModelRef, agent: string, text: string) => {
+    try {
+      const r = await fetch(url(`/session/${id}/prompt_async?${qd(dir)}`), {
+        method: "POST",
+        headers: { "content-type": "application/json", ...authHeader() },
+        body: JSON.stringify({ model, agent, parts: [{ type: "text", text }] }),
+      });
+      return r.ok;
+    } catch {
+      return false;
+    }
+  },
   abort: (dir: string, id: string) => req<boolean>(`/session/${id}/abort?${qd(dir)}`, { method: "POST" }),
   respondPermission: (dir: string, id: string, permID: string, response: "once" | "always" | "reject") =>
     req<boolean>(`/session/${id}/permissions/${permID}?${qd(dir)}`, {

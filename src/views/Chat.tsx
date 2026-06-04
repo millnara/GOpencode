@@ -122,6 +122,23 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
 
   useEffect(() => { const c = contentRef.current; if (c && c.scrollHeight - c.scrollTop - c.clientHeight < 160) c.scrollTop = c.scrollHeight; });
 
+  useEffect(() => {
+    const onVis = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const hist = await api.messages(dir, sid);
+        const newMap = new Map<string, Group>();
+        for (const m of hist) newMap.set(m.info.id, { info: m.info, parts: m.parts || [] });
+        msgs.current = newMap;
+        const last = hist.map((m) => m.info).filter((m: any) => m.role === "assistant").pop() as any;
+        if (last?.completed) setBusy(false);
+        force();
+      } catch { /* ignore */ }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [dir, sid]);
+
   const send = async () => {
     const text = input.trim(); if (!text || busy || !model) return;
     setInput(""); if (taRef.current) taRef.current.style.height = "auto";
@@ -138,11 +155,18 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         }
       }
       if (cmdName) {
-        await api.runCommand(dir, sid, cmdName, cmdArgs);
+        try { await api.runCommand(dir, sid, cmdName, cmdArgs); } catch (e: any) {
+          if (/Failed to fetch|NetworkError|aborted/i.test(e.message)) {
+            ensure("net_warn_" + Date.now()).parts.push({ id: "w", type: "text", text: "⚠ Connection blip — reply will appear on reconnect" } as any); force();
+          } else { throw e; }
+        }
       } else {
-        await api.send(dir, sid, model, agent, text);
+        const ok = await api.promptAsync(dir, sid, model, agent, text);
+        if (!ok) {
+          ensure("net_warn_" + Date.now()).parts.push({ id: "w", type: "text", text: "⚠ Connection blip — reply will appear on reconnect" } as any); force();
+        }
       }
-    } catch (e: any) { ensure("send_err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Send failed: " + (e.message || e) } as any); setBusy(false); force(); }
+    } catch (e: any) { ensure("send_err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Send failed: " + (e.message || e) } as any); force(); }
   };
   const abort = async () => { try { await api.abort(dir, sid); } catch { /* */ } setBusy(false); };
   const respond = async (id: string, r: "once" | "always" | "reject") => {
