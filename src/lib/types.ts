@@ -67,7 +67,7 @@ export interface Agent { name: string; mode?: string; }
 export interface ProviderConfig {
   id: string;
   name?: string;
-  models: Record<string, { name?: string }>;
+  models: Record<string, { name?: string; variants?: Record<string, { reasoningEffort?: string }> }>;
 }
 export interface ConfigProvidersResponse { providers: ProviderConfig[]; }
 

@@ -1,9 +1,9 @@
 import { Preferences } from "@capacitor/preferences";
 
 export interface Conn {
-  baseUrl: string;   // e.g. "/api" (web dev proxy) or "http://gg-45-ferngrove:4096" (native)
-  username: string;  // opencode Basic-auth username (default "opencode")
-  password: string;  // OPENCODE_SERVER_PASSWORD
+  baseUrl: string;
+  username: string;
+  password: string;
   soundOnDone: boolean;
   notifyOnDone: boolean;
   locale: string;
@@ -25,9 +25,7 @@ export async function loadConn(): Promise<Conn> {
   try {
     const { value } = await Preferences.get({ key: KEY });
     if (value) cache = { ...DEFAULTS, ...JSON.parse(value) };
-  } catch {
-    /* ignore */
-  }
+  } catch { /* ignore */ }
   return cache;
 }
 export async function saveConn(next: Partial<Conn>): Promise<Conn> {

@@ -35,17 +35,31 @@ export const api = {
   session: (dir: string, id: string) => req<Session>(`/session/${id}?${qd(dir)}`),
   messages: (dir: string, id: string) => req<MessageWithParts[]>(`/session/${id}/message?${qd(dir)}`),
   deleteSession: (dir: string, id: string) => req(`/session/${id}?${qd(dir)}`, { method: "DELETE" }),
+  updateSession: (dir: string, id: string, patch: Record<string, any>) =>
+    req<Session>(`/session/${id}?${qd(dir)}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  shareSession: (dir: string, id: string) => req<{ url: string }>(`/session/${id}/share?${qd(dir)}`, { method: "POST" }),
+  forkSession: (dir: string, id: string, messageID?: string) =>
+    req<Session>(`/session/${id}/fork?${qd(dir)}`, { method: "POST", body: JSON.stringify(messageID ? { messageID } : {}) }),
+  compactSession: (dir: string, id: string, providerID?: string, modelID?: string) =>
+    req(`/session/${id}/summarize?${qd(dir)}`, { method: "POST", body: JSON.stringify({ providerID, modelID }) }),
+  revertSession: (dir: string, id: string, messageID: string) =>
+    req(`/session/${id}/revert?${qd(dir)}`, { method: "POST", body: JSON.stringify({ messageID }) }),
+  shell: (dir: string, id: string, command: string) =>
+    req(`/session/${id}/shell?${qd(dir)}`, { method: "POST", body: JSON.stringify({ command }) }),
   send: (dir: string, id: string, model: ModelRef, agent: string, text: string) =>
     req(`/session/${id}/message?${qd(dir)}`, {
       method: "POST",
       body: JSON.stringify({ model, agent, parts: [{ type: "text", text }] }),
     }),
-  promptAsync: async (dir: string, id: string, model: ModelRef, agent: string, text: string) => {
+  promptAsync: async (dir: string, id: string, model: ModelRef, agent: string, text: string, variant?: string | null, system?: string | null) => {
     try {
+      const body: Record<string, any> = { model, agent, parts: [{ type: "text", text }] };
+      if (variant) body.variant = variant;
+      if (system) body.system = system;
       const r = await fetch(url(`/session/${id}/prompt_async?${qd(dir)}`), {
         method: "POST",
         headers: { "content-type": "application/json", ...authHeader() },
-        body: JSON.stringify({ model, agent, parts: [{ type: "text", text }] }),
+        body: JSON.stringify(body),
       });
       return r.ok;
     } catch {
@@ -76,6 +90,7 @@ export const api = {
   rejectQuestion: (dir: string, id: string) =>
     req(`/question/${id}/reject?${qd(dir)}`, { method: "POST" }),
   diff: (dir: string, id: string) => req<{ file: string; before: string; after: string }[]>(`/session/${id}/diff?${qd(dir)}`),
+  todo: (dir: string, id: string) => req<{ content: string; status: string; priority: string }[]>(`/session/${id}/todo?${qd(dir)}`),
 };
 
 /**

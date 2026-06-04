@@ -173,27 +173,27 @@ Goal: GOpencode does everything the prototype does, verified live.
        (`{type:"file", mime, filename, url}`; base64 data URL ok). Verify the model is vision-capable.
 - [x] **5.3** Session management: rename, delete, share (`/session/{id}/share`), search.
 - [x] **5.4** Token/cost display: from `StepFinishPart.tokens` and `AssistantMessage.cost`.
-- [ ] **5.5** Quick session switcher / recent sessions across projects.
+- [x] **5.5** Quick session switcher / recent sessions across projects.
 - [x] **5.6** Pull-to-refresh, reconnect/offline banners, retry on `session.error`.
 - [ ] **5.7** Biometric lock on the stored password.
-- [ ] **5.8** Revert/unrevert (`/session/{id}/revert`), abort polish.
+- [x] **5.8** Revert/unrevert (`/session/{id}/revert`), abort polish.
 
 ### Full-opencode parity — options we don't expose yet (audited 2026-06-04)
-- [ ] **5.9 Reasoning effort (model variant)** ← requested. Reasoning models expose
+- [x] **5.9 Reasoning effort (model variant)** ← requested. Reasoning models expose
       `model.variants` = `{ low|medium|high: { reasoningEffort } }` (empty `{}` = no effort levels).
       When the selected model has variants, show an **effort pill** (Low/Med/High) next to the
       model/agent pills in `Chat.tsx`; pass the chosen key as **`variant`** in the send body
       (`prompt_async` / `/message` already accept `variant: string`). Persist per session like the
       model. Hide the pill for models with no variants. (glm-5.1 has `reasoning:true` but no variants;
       nvidia qwen/nemotron models expose low/med/high.)
-- [ ] **5.10 Agent TODO panel** — `GET /session/{id}/todo` → `[{content, status, priority}]`. The
+- [x] **5.10 Agent TODO panel** — `GET /session/{id}/todo` → `[{content, status, priority}]`. The
       agent maintains a live task list (via the `todowrite` tool); show it in a collapsible panel /
       header chip so you can watch its plan + progress. Refresh on `todo.updated` events.
 - [ ] **5.11 File viewer + code search** — browse/read code from the phone:
       `GET /file/content?path=` → `{type:"text"|"binary", content, diff, patch}` (viewer with syntax-ish
       mono rendering); `GET /find/file?query=` → `[path]` (fuzzy file finder); `GET /find/symbol?query=`
       → `[{name, kind, location}]` (LSP symbol search). Wire into the folder browser / a search screen.
-- [ ] **5.12 Session actions** — **fork** `POST /session/{id}/fork {messageID}` (branch a conversation),
+- [x] **5.12 Session actions** — **fork** `POST /session/{id}/fork {messageID}` (branch a conversation),
       **compact** `POST /session/{id}/summarize {providerID, modelID, auto}` (shrink context; also via
       `/compact` command), **share** `POST /session/{id}/share` → public link (+ unshare). Surface in a
       session ⋯ menu.

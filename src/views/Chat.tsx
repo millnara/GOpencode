@@ -6,10 +6,12 @@ import PermissionPrompt from "../components/PermissionPrompt";
 import ModelSheet from "../components/ModelSheet";
 import CommandMenu from "../components/CommandMenu";
 import QuestionPrompt from "../components/QuestionPrompt";
+import TodoPanel from "../components/TodoPanel";
 import { getConn } from "../lib/settings";
 import { playDone } from "../lib/sound";
 import { notifyDone } from "../lib/notify";
 import { t } from "../lib/i18n";
+import { b64uEnc } from "../lib/util";
 
 async function haptic(light = true) {
   try {
@@ -45,7 +47,10 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [commands, setCommands] = useState<Command[]>([]);
   const [model, setModel] = useState<ModelRef | null>(null);
   const [agent, setAgent] = useState("build");
-  const [sheet, setSheet] = useState<null | "model" | "agent">(null);
+  const [variant, setVariant] = useState<string | null>(null);
+  const [sysPrompt, setSysPrompt] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [sheet, setSheet] = useState<null | "model" | "agent" | "session">(null);
   const [wedged, setWedged] = useState(false);
   const [turnMeta, setTurnMeta] = useState<string | null>(null);
   const [offline, setOffline] = useState(!navigator.onLine);
@@ -125,7 +130,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     try { await api.abort(dir, sid); } catch { /* */ }
     const text = lastUserText() || "Continue.";
     setBusy(true); wasBusy.current = true;
-    await api.promptAsync(dir, sid, model, agent, text);
+    await api.promptAsync(dir, sid, model, agent, text, variant, sysPrompt || null);
   };
 
   const handleEvent = (ev: OcEvent) => {
@@ -244,7 +249,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           } else { throw e; }
         }
       } else {
-        const ok = await api.promptAsync(dir, sid, model, agent, text);
+        const ok = await api.promptAsync(dir, sid, model, agent, text, variant, sysPrompt || null);
         if (!ok) {
           ensure("net_warn_" + Date.now()).parts.push({ id: "w", type: "text", text: "⚠ Connection blip — reply will appear on reconnect" } as any); force();
         }
@@ -265,8 +270,30 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     try { await api.rejectQuestion(dir, id); } catch { /* */ }
   };
 
+  const forkSession = async () => {
+    try {
+      const s = await api.forkSession(dir, sid);
+      location.hash = "#/p/" + b64uEnc(dir) + "/s/" + s.id;
+    } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Fork failed: " + (e.message || e) } as any); force(); }
+  };
+  const compactSession = async () => {
+    try { await api.compactSession(dir, sid); } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Compact failed: " + (e.message || e) } as any); force(); }
+  };
+  const shareSession = async () => {
+    try {
+      const r = await api.shareSession(dir, sid);
+      if (r?.url) { await navigator.clipboard.writeText(r.url); ensure("info_" + Date.now()).parts.push({ id: "i", type: "text", text: "Link copied to clipboard" } as any); force(); }
+    } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Share failed: " + (e.message || e) } as any); force(); }
+  };
+
   const groups = [...msgs.current.values()].sort((a, b) => (a.info.time?.created || 0) - (b.info.time?.created || 0));
   const modelLabel = model?.modelID || "model";
+  const currentModelVariants = (() => {
+    if (!model || !providerConfig.length) return {};
+    const prov = providerConfig.find((p) => p.id === model.providerID);
+    const m = prov?.models?.[model.modelID];
+    return m?.variants && Object.keys(m.variants).length > 0 ? m.variants : {};
+  })();
 
   const modelProviders = providerConfig.length > 0
     ? providerConfig
@@ -282,9 +309,12 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         <button className="iconbtn" onClick={() => history.length > 1 ? history.back() : (location.hash = "#/")}>‹</button>
         <div className="title">{title}<div className="sub">{dir.split(/[\\/]/).pop()}</div></div>
         {busy && <button className="iconbtn" style={{ color: "var(--danger)" }} onClick={abort}>■</button>}
+        {!busy && <button className="iconbtn" onClick={() => setSheet("session")}>⋮</button>}
       </div>
 
       {offline && <div style={{ background: "var(--danger)", color: "#fff", textAlign: "center", padding: "4px 8px", fontSize: 12, fontWeight: 600 }}>Offline — reconnecting…</div>}
+
+      <TodoPanel dir={dir} sid={sid} />
 
       <div className="content" ref={contentRef}>
         <div className="msgs">
@@ -310,9 +340,24 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         <div className="modelbar">
           <button className="pill" onClick={() => setSheet("model")}>🧠 <b>{modelLabel}</b></button>
           <button className="pill" onClick={() => setSheet("agent")}>⚙ <b>{agent}</b></button>
+          {Object.keys(currentModelVariants).length > 0 && (
+            <button className="pill" onClick={() => {
+              const keys = Object.keys(currentModelVariants);
+              const next = keys[(keys.indexOf(variant || keys[0]) + 1) % keys.length];
+              setVariant(next);
+            }}>⚡ <b>{variant || Object.keys(currentModelVariants)[0]}</b></button>
+          )}
         </div>
         <CommandMenu commands={commands} value={input} onPick={(name) => { setInput("/" + name + " "); taRef.current?.focus(); }} />
         {busy && <div className="statusline"><div className="spinner" /><span>{t("chat.working")}</span></div>}
+        {showAdvanced && (
+          <div style={{ padding: "4px 2px", display:"flex", flexDirection:"column", gap:6 }}>
+            <textarea className="sysinput" rows={2} placeholder="System prompt override (optional)…" value={sysPrompt}
+              onChange={(e) => setSysPrompt(e.target.value)} />
+          </div>
+        )}
+        <button style={{ fontSize:11, color:"var(--faint)", padding:"2px 6px", alignSelf:"flex-start" }}
+          onClick={() => setShowAdvanced(!showAdvanced)}>{showAdvanced ? "▴ hide advanced" : "▾ advanced"}</button>
         <div className="box">
           <textarea
             ref={taRef} rows={1} placeholder={t("chat.placeholder")} value={input}
@@ -335,6 +380,22 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
                 <span>{a}</span>{agent === a && <span>✓</span>}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {sheet === "session" && (
+        <div className="sheet-bg" onClick={(e) => { if (e.target === e.currentTarget) setSheet(null); }}>
+          <div className="sheet">
+            <h3>Session</h3>
+            <div className="opt" onClick={() => { setSheet(null); forkSession(); }}><span>⑂ Fork this session</span></div>
+            <div className="opt" onClick={() => { setSheet(null); compactSession(); }}><span>⊞ Compact context</span></div>
+            <div className="opt" onClick={() => { setSheet(null); shareSession(); }}><span>↗ Share (copy link)</span></div>
+            <div className="opt" onClick={async () => {
+              setSheet(null);
+              const cmd = prompt("Shell command:");
+              if (cmd) { setBusy(true); wasBusy.current = true; try { await api.shell(dir, sid, cmd); } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Shell failed: " + (e.message || e) } as any); setBusy(false); force(); } }
+            }}><span>⌘ Run shell command</span></div>
+            <div className="opt" style={{ color: "var(--danger)" }} onClick={() => { setSheet(null); if (confirm("Delete this session?")) { api.deleteSession(dir, sid).then(() => history.back()); } }}><span>✕ Delete session</span></div>
           </div>
         </div>
       )}

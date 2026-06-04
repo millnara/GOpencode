@@ -39,6 +39,10 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
       if (ad !== bd) return ad ? 1 : -1;
       return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
     });
+  const files = (entries || [])
+    .filter((x) => x.type === "file")
+    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+    .slice(0, 20);
 
   const par = dir ? parentDir(dir) : null;
 
@@ -46,7 +50,7 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
     <div className="screen" style={{ position: "relative" }}>
       <div className="topbar">
         <button className="iconbtn" onClick={() => (location.hash = "#/")}>‹</button>
-        <div className="title">{leaf(dir) || dir}<div className="sub">browse</div></div>
+        <div className="title">{leaf(dir) || dir}<div className="sub">{entries ? dirs.length + " folders" + (files.length ? ", " + files.length + " files" : "") : "browse"}</div></div>
         <button className="iconbtn" style={{ width: "auto", padding: "0 12px", color: "var(--accent2)", fontSize: 15, fontWeight: 600 }}
           onClick={() => (location.hash = "#/p/" + b64uEnc(dir))}>Open ▸</button>
       </div>
@@ -59,7 +63,7 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
           {!entries && !err && <div className="loading"><div className="spinner" /></div>}
           {par && (
             <button className="card" onClick={() => setDir(par)}>
-              <div className="avatar" style={{ background: "linear-gradient(135deg,#3a3a40,#26262b)", fontSize: 18 }}>⬆</div>
+              <div className="avatar" style={{ background: "linear-gradient(135deg,#3a3a40,#26262b)", fontSize: 16 }}>⬆</div>
               <div className="meta"><div className="name">..</div><div className="desc">Up one level</div></div>
               <div className="chev">›</div>
             </button>
@@ -67,7 +71,7 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
           {entries && dirs.length === 0 && <div className="empty">No subfolders here.</div>}
           {dirs.map((d) => (
             <button key={d.absolute} className="card" onClick={() => setDir(d.absolute)}>
-              <div className="avatar" style={{ background: "linear-gradient(135deg,#3a3a40,#26262b)", fontSize: 18 }}>📁</div>
+              <div className="avatar" style={{ background: "linear-gradient(135deg,#3a3a40,#26262b)", fontSize: 16 }}>📁</div>
               <div className="meta">
                 <div className="name">{d.name}</div>
                 {d.ignored && <div className="desc">ignored</div>}
@@ -75,6 +79,20 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
               <div className="chev">›</div>
             </button>
           ))}
+          {files.length > 0 && (
+            <>
+              <div className="section-label">Files ({files.length})</div>
+              {files.map((f) => (
+                <div key={f.absolute} className="card" style={{ cursor: "default" }}>
+                  <div className="avatar" style={{ background: "linear-gradient(135deg,#2a2a30,#1d1d22)", fontSize: 14 }}>📄</div>
+                  <div className="meta">
+                    <div className="name" style={{ fontSize: 14 }}>{f.name}</div>
+                    {f.ignored && <div className="desc">ignored</div>}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </div>
       <button className="fab" style={{ left: 18, right: 18, justifyContent: "center" }}
