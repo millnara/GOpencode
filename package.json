@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "cap:sync": "npm run build && cap sync",
     "cap:android": "npm run build && cap sync && cap open android",
-    "gateway": "cd gateway && node index.js"
+    "desktop:build": "cd desktop && go build -ldflags=\"-s -w\" -o gopencode.exe .",
+    "desktop:installer": "cd desktop && build.bat"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",
