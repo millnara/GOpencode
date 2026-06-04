@@ -105,6 +105,20 @@ Goal: GOpencode does everything the prototype does, verified live.
     on anything missed while backgrounded, and clear `busy` if the last assistant turn has a
     `step-finish`. Port from prototype `onSendError()` / `refreshChat()` in `../opencode-remote/public/app.js`.
   - Accept: lock the phone mid-turn, unlock → the reply is there; no false "Send failed".
+- [ ] **2.7 Question / multiple-choice prompt UI** — agents ask selectable questions; render them.
+  - opencode API (verified): `Event.question.asked` → `{ id, sessionID, questions:[{ question,
+    header, options:[{label, description}], multiple, custom }], tool }`. Reply:
+    `POST /question/{id}/reply` body `{ answers: [[string]] }` (one `string[]` of chosen labels per
+    question). Reject: `POST /question/{id}/reject`. Clears on `Event.question.replied`.
+  - New `src/components/QuestionPrompt.tsx`: one card per question — header chip + question text +
+    a button per `{label, description}`. `multiple:true` → multi-select + a Submit button;
+    `custom:true` → an "Other…" free-text field appended to the answers. Mirror `PermissionPrompt.tsx`.
+  - `src/lib/api.ts`: `replyQuestion(dir, id, answers)`, `rejectQuestion(dir, id)`. Types in `types.ts`
+    (`QuestionRequest`, `QuestionInfo`, `QuestionOption`).
+  - `src/views/Chat.tsx`: handle `question.asked` / `question.replied` in `handleEvent` (filter by
+    `sid`), render prompts above the composer exactly like permission prompts.
+  - Accept: an agent question shows option cards; select + submit answers it and the turn continues;
+    `multiple` and `custom` ("Other") both work.
 
 ---
 
@@ -129,6 +143,10 @@ Goal: GOpencode does everything the prototype does, verified live.
       (mirror giuliastro); language picker already in Settings.
 - [ ] **4.4** **Haptics** (@capacitor/haptics) on send + permission prompts.
 - [ ] **4.5** Keep-awake during active streaming; status-bar theming.
+- [ ] **4.6 "Turn complete" marker** — on `session.idle`, render a subtle line
+      "✓ done · {tokens} tok · ${cost}" from `StepFinishPart.tokens` / `AssistantMessage.cost`.
+      (The wrap-up *prose* is the model's job — many turns are tool-only with no closing text; that's
+      model behaviour, not an app bug. This just gives a clear end-of-turn signal + usage.)
 
 ---
 
@@ -155,6 +173,39 @@ Goal: GOpencode does everything the prototype does, verified live.
 
 ---
 
+## Phase 7 — Self-contained secure transport (replaces Tailscale)   ← big one; after APK works
+Goal: **pair once via QR, then reach the desktop from anywhere, end-to-end encrypted, with no VPN,
+no port-forwarding, and no manual Tailscale.** Decided transport: **P2P WebRTC** (DTLS-encrypted by
+default). On the same WiFi it connects directly (LAN-direct, zero relay); remotely it uses STUN, and
+only falls back to a TURN relay on restrictive NATs (which sees ciphertext only). The only always-on
+third party is a tiny signaling server used for connection setup — it never sees traffic.
+
+- [ ] **7.1 Desktop gateway** — evolve `../opencode-remote/server.js` (or a new `gateway/` service):
+      a pure-Node WebRTC peer (lib: **`werift`** or **`node-datachannel`**) that **bridges a data
+      channel ↔ opencode** on `127.0.0.1:4096` — translating tunneled requests into HTTP calls and
+      streaming the `/event` SSE back over the channel. Runs as the always-on service (replaces the
+      current proxy task).
+- [ ] **7.2 Pairing + auth** — desktop shows a **QR** (signaling locator + a pairing secret). The
+      gateway only completes a connection with a peer that proves the secret; verify the DTLS
+      fingerprint. This replaces the static `OPENCODE_SERVER_PASSWORD` for the client. Persist the
+      pairing on the phone via `@capacitor/preferences`. Add a "Pair device (scan QR)" flow in Settings.
+- [ ] **7.3 Signaling** — minimal signaling server (exchanges SDP offer/answer + ICE candidates only).
+      Self-hostable; on LAN use **mDNS** so no server is needed at home. Document that it sees only
+      connection metadata, never request/response bodies.
+- [ ] **7.4 ICE / NAT traversal** — public **STUN** (e.g. Google) for address discovery; **TURN**
+      fallback (self-host `coturn`, or document a provider) for symmetric NATs — relays ciphertext only.
+- [ ] **7.5 Phone transport shim** — an `RTCPeerConnection` + `RTCDataChannel` client plus a
+      **fetch-like adapter** so `src/lib/api.ts` (`req`, `streamEvents`) runs **unchanged** over the
+      data channel — swap the transport, not the call sites. Auto-pick path: LAN-direct → STUN → TURN.
+- [ ] **7.6 Connection UX + fallbacks** — a status indicator (connecting / direct / relayed / offline),
+      graceful reconnect, and keep the existing direct-HTTP/proxy path as an optional advanced transport
+      (so power users can still point at a plain URL / Tailscale if they want).
+- Accept: phone on **cellular with Tailscale OFF** reaches the desktop after one QR scan; packet
+  capture shows DTLS (encrypted); on home WiFi it's a direct host-candidate connection (no relay);
+  pulling the relay/STUN still works on LAN.
+
+---
+
 ## File map (where things go)
 | Concern | File |
 |---|---|
@@ -165,6 +216,8 @@ Goal: GOpencode does everything the prototype does, verified live.
 | New: folder browser | `src/views/BrowseFolder.tsx` |
 | New: model picker | `src/components/ModelSheet.tsx` |
 | New: command menu | `src/components/CommandMenu.tsx` |
+| New: question prompt (2.7) | `src/components/QuestionPrompt.tsx` |
+| New: P2P transport (Phase 7) | phone `src/lib/transport.ts` (WebRTC shim) + desktop `gateway/` service |
 | Routing | `src/App.tsx` |
 | Native helpers | `src/lib/sound.ts`, `notify.ts`, `i18n.ts`, `settings.ts` |
 | Styles | `src/styles.css` (prototype `style.css` has matching classes to copy) |
@@ -178,3 +231,8 @@ Goal: GOpencode does everything the prototype does, verified live.
   vite.config.ts to use loadEnv for .env.local password. Build green (tsc + vite build). All new
   API endpoints verified live against server (config/providers, command, file, path). Phases 2–6
   pending.
+- 2026-06-04 (planning): added **2.7 Question/Options prompt UI** (opencode `question.asked` →
+  selectable multi-question/options, like opencode's own UI), **4.6 turn-complete marker**, and a
+  new **Phase 7 — self-contained P2P WebRTC transport** (QR pairing, DTLS E2E encryption, LAN-direct
+  + STUN/TURN fallback) to replace the manual Tailscale dependency. Suggested order: 2.7 next (core
+  chat gap), then continue P2→P3 (APK on existing transport), then Phase 7 to drop Tailscale.
