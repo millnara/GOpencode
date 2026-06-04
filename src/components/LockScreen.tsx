@@ -49,7 +49,7 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
         placeholder="····"
       />
       {error && <p style={{ color: "var(--danger)", fontSize: 13, marginTop: 10 }}>{error}</p>}
-      <button className="primary" style={{ width: 200, marginTop: 16 }}
+      <button className="btn" style={{ width: 200, marginTop: 16 }}
         disabled={pin.length < 4} onClick={submit}>
         {mode === "create" ? (setup ? "Confirm" : "Set PIN") : "Unlock"}
       </button>

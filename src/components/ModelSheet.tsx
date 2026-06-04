@@ -33,7 +33,7 @@ export default function ModelSheet({ providers, current, onPick, onClose }: Prop
             <h3 style={{ margin: "10px 4px", flex: 1 }}>{prov.name}</h3>
           </div>
           {mids.length > 8 && (
-            <input className="search" style={{ margin: "6px 14px", width: "calc(100% - 28px)" }}
+            <input className="inline-search" style={{ margin: "6px 14px", width: "calc(100% - 28px)" }}
               placeholder={`Search ${mids.length} models…`}
               value={q} onChange={(e) => setQ(e.target.value)} />
           )}
@@ -59,7 +59,7 @@ export default function ModelSheet({ providers, current, onPick, onClose }: Prop
       <div className="sheet">
         <h3>Provider</h3>
         {providers.length === 0 && (
-          <div className="empty" style={{ padding: 24 }}>
+          <div className="empty-state" style={{ padding: 24 }}>
             No providers found.
           </div>
         )}

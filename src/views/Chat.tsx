@@ -326,70 +326,97 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
 
   return (
     <div className="screen">
-      <div className="topbar">
-        <button className="iconbtn" onClick={() => history.length > 1 ? history.back() : (location.hash = "#/")}>‹</button>
-        <div className="title">{title}<div className="sub">{dir.split(/[\\/]/).pop()}{isP2P() ? "  ·  P2P" : isConnected() ? "  ·  gateway" : ""}</div></div>
-        {busy && <button className="iconbtn" style={{ color: "var(--danger)" }} onClick={abort}>■</button>}
-        {!busy && <button className="iconbtn" onClick={() => setSheet("session")}>⋮</button>}
+      <div className="chat-header">
+        <button className="back" onClick={() => history.length > 1 ? history.back() : (location.hash = "#/")}>‹</button>
+        <div className="info">
+          <div className="name">{title || "Session"}</div>
+          <div className="path">{dir.split(/[\\/]/).pop()}{isConnected() ? " · connected" : ""}</div>
+        </div>
+        <div className={"conn-dot " + (isP2P() ? "p2p" : isConnected() ? "ws" : "direct")} />
+        {busy && <button className="back" style={{ color: "var(--danger)" }} onClick={abort}>■</button>}
+        {!busy && <button className="back" onClick={() => setSheet("session")}>⋯</button>}
       </div>
 
-      {offline && <div style={{ background: "var(--danger)", color: "#fff", textAlign: "center", padding: "4px 8px", fontSize: 12, fontWeight: 600 }}>Offline — reconnecting…</div>}
+      {offline && <div className="status-banner offline">Offline — reconnecting…</div>}
 
       <TodoPanel dir={dir} sid={sid} />
 
-      <div className="content" ref={contentRef}>
-        <div className="msgs">
-          {groups.map((g) => <MessageView key={g.info.id} group={g} onRevert={revertTo} />)}
-          {pending && <div className="msg user"><div className="bubble">{pending}</div></div>}
-          {perms.map((req) => <PermissionPrompt key={req.id} req={req} onRespond={(r) => respond(req.id, r)} />)}
-          {questions.map((qr) => (
-            <QuestionPrompt key={qr.id} req={qr}
-              onReply={(answers) => replyQuestion(qr.id, answers)}
-              onReject={() => rejectQuestion(qr.id)} />
-          ))}
-          {wedged && !busy && (
-            <div className="errbox" style={{ borderColor: "var(--warn)", color: "var(--warn)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>Session appears stuck</span>
-              <button className="q-submit" style={{ marginTop: 0, padding: "6px 14px", fontSize: 13 }} onClick={resume}>⟳ Resume</button>
+      <div className="msg-list" ref={contentRef}>
+        {groups.map((g) => (
+          <div key={g.info.id} className="msg-group">
+            <MessageView group={g} onRevert={revertTo} />
+          </div>
+        ))}
+        {pending && (
+          <div className="msg-group">
+            <div className="msg-row user">
+              <div className="msg-avatar user">Y</div>
+              <div className="msg-block">
+                <div className="msg-bubble">{pending}</div>
+              </div>
             </div>
-          )}
-          {turnMeta && !busy && <div className="turn-marker">{turnMeta}</div>}
-        </div>
+          </div>
+        )}
+        {busy && !pending && (
+          <div className="msg-group">
+            <div className="msg-row assistant">
+              <div className="msg-avatar assistant">oc</div>
+              <div className="msg-block">
+                <div className="typing"><span /><span /><span /></div>
+              </div>
+            </div>
+          </div>
+        )}
+        {perms.map((req) => (
+          <div key={req.id} className="msg-group">
+            <PermissionPrompt req={req} onRespond={(r) => respond(req.id, r)} />
+          </div>
+        ))}
+        {questions.map((qr) => (
+          <div key={qr.id} className="msg-group">
+            <QuestionPrompt req={qr} onReply={(a) => replyQuestion(qr.id, a)} onReject={() => rejectQuestion(qr.id)} />
+          </div>
+        ))}
+        {wedged && !busy && (
+          <div className="status-banner wedged">
+            <span>Session appears stuck</span>
+            <button onClick={resume}>⟳ Resume</button>
+          </div>
+        )}
+        {turnMeta && !busy && <div className="turn-marker">{turnMeta}</div>}
       </div>
 
       <div className="composer">
-        <div className="modelbar">
-          <button className="pill" onClick={() => setSheet("model")}>🧠 <b>{modelLabel}</b></button>
-          <button className="pill" onClick={() => setSheet("agent")}>⚙ <b>{agent}</b></button>
+        <div className="chips">
+          <button className="pill" onClick={() => setSheet("model")}><b>{modelLabel}</b></button>
+          <button className="pill" onClick={() => setSheet("agent")}><b>{agent}</b></button>
           {Object.keys(currentModelVariants).length > 0 && (
             <button className="pill" onClick={() => {
               const keys = Object.keys(currentModelVariants);
-              const next = keys[(keys.indexOf(variant || keys[0]) + 1) % keys.length];
-              setVariant(next);
-            }}>⚡ <b>{variant || Object.keys(currentModelVariants)[0]}</b></button>
+              setVariant(keys[(keys.indexOf(variant || keys[0]) + 1) % keys.length]);
+            }}><b>⚡ {variant || Object.keys(currentModelVariants)[0]}</b></button>
           )}
         </div>
         <CommandMenu commands={commands} value={input} onPick={(name) => { setInput("/" + name + " "); taRef.current?.focus(); }} />
         {busy && <div className="statusline"><div className="spinner" /><span>{t("chat.working")}</span></div>}
         {showAdvanced && (
-          <div style={{ padding: "4px 2px", display:"flex", flexDirection:"column", gap:6 }}>
-            <textarea className="sysinput" rows={2} placeholder="System prompt override (optional)…" value={sysPrompt}
+          <div style={{ padding: "4px 2px 8px", display: "flex", flexDirection: "column", gap: 6 }}>
+            <textarea className="sysinput" rows={2} placeholder="System prompt override…" value={sysPrompt}
               onChange={(e) => setSysPrompt(e.target.value)} />
-            <div style={{ display:"flex", gap:6 }}>
-              <select className="pill" style={{ padding: "5px 10px" }} value={formatMode || ""}
-                onChange={(e) => setFormatMode(e.target.value || null)}>
+            <div style={{ display: "flex", gap: 6 }}>
+              <select className="pill" value={formatMode || ""} onChange={(e) => setFormatMode(e.target.value || null)}>
                 <option value="">Format: text</option>
                 <option value="json_schema">Format: JSON Schema</option>
               </select>
-              <label className="pill" style={{ cursor:"pointer" }}>
-                <input type="checkbox" checked={toolsDisabled} onChange={(e) => setToolsDisabled(e.target.checked)} style={{ margin:0, accentColor:"var(--accent)" }} />
+              <label className="pill" style={{ cursor: "pointer" }}>
+                <input type="checkbox" checked={toolsDisabled} onChange={(e) => setToolsDisabled(e.target.checked)} style={{ margin: 0, accentColor: "var(--accent)" }} />
                 <span>No tools</span>
               </label>
             </div>
           </div>
         )}
-        <button style={{ fontSize:11, color:"var(--faint)", padding:"2px 6px", alignSelf:"flex-start" }}
-          onClick={() => setShowAdvanced(!showAdvanced)}>{showAdvanced ? "▴ hide advanced" : "▾ advanced"}</button>
+        <div style={{ fontSize: 11, color: "var(--fade)", padding: "2px 6px", alignSelf: "flex-start", cursor: "pointer" }}
+          onClick={() => setShowAdvanced(!showAdvanced)}>{showAdvanced ? "▴ hide" : "▾ advanced"}</div>
         {attachments.length > 0 && (
           <div className="att-preview">
             {attachments.map((a, i) => (
@@ -401,13 +428,11 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           </div>
         )}
         <div className="box">
-          <button className="iconbtn" style={{ color: "var(--muted)", fontSize: 22, flex: "none" }} onClick={pickFile}>📷</button>
-          <textarea
-            ref={taRef} rows={1} placeholder={t("chat.placeholder")} value={input}
-            onChange={(e) => { setInput(e.target.value); const el = e.target; el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 160) + "px"; }}
-            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }}
-          />
-          <button className={"send" + (busy ? " stop" : "")} disabled={busy || (!input.trim() && !attachments.length)} onClick={send}>↑</button>
+          <button className="camera-btn" onClick={pickFile}>📷</button>
+          <textarea ref={taRef} rows={1} placeholder={t("chat.placeholder")} value={input}
+            onChange={(e) => { setInput(e.target.value); const el = e.target; el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 140) + "px"; }}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} />
+          <button className={"send-btn" + (busy ? " stop" : "")} disabled={busy || (!input.trim() && !attachments.length)} onClick={send}>↑</button>
         </div>
       </div>
 
@@ -415,10 +440,11 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         <ModelSheet providers={modelProviders} current={model} onPick={setModel} onClose={() => setSheet(null)} />
       )}
       {sheet === "agent" && (
-        <div className="sheet-bg" onClick={(e) => { if (e.target === e.currentTarget) setSheet(null); }}>
+        <div className="sheet-bg" onClick={e => { if (e.target === e.currentTarget) setSheet(null); }}>
           <div className="sheet">
+            <div className="handle" />
             <h3>Agent</h3>
-            {(agents.length ? agents.map((a) => a.name) : ["build", "plan"]).map((a) => (
+            {(agents.length ? agents.map(a => a.name) : ["build", "plan"]).map(a => (
               <div key={a} className={"opt" + (agent === a ? " sel" : "")} onClick={() => { setAgent(a); setSheet(null); }}>
                 <span>{a}</span>{agent === a && <span>✓</span>}
               </div>
@@ -427,8 +453,9 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         </div>
       )}
       {sheet === "session" && (
-        <div className="sheet-bg" onClick={(e) => { if (e.target === e.currentTarget) setSheet(null); }}>
+        <div className="sheet-bg" onClick={e => { if (e.target === e.currentTarget) setSheet(null); }}>
           <div className="sheet">
+            <div className="handle" />
             <h3>Session</h3>
             <div className="opt" onClick={() => { setSheet(null); forkSession(); }}><span>⑂ Fork this session</span></div>
             <div className="opt" onClick={() => { setSheet(null); compactSession(); }}><span>⊞ Compact context</span></div>
@@ -438,7 +465,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
               const cmd = prompt("Shell command:");
               if (cmd) { setBusy(true); wasBusy.current = true; try { await api.shell(dir, sid, cmd); } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Shell failed: " + (e.message || e) } as any); setBusy(false); force(); } }
             }}><span>⌘ Run shell command</span></div>
-            <div className="opt" style={{ color: "var(--danger)" }} onClick={() => { setSheet(null); if (confirm("Delete this session?")) { api.deleteSession(dir, sid).then(() => history.back()); } }}><span>✕ Delete session</span></div>
+            <div className="opt" style={{ color: "var(--danger)" }} onClick={() => { setSheet(null); if (confirm("Delete?")) { api.deleteSession(dir, sid).then(() => history.back()); } }}><span>✕ Delete session</span></div>
           </div>
         </div>
       )}

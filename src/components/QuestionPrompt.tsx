@@ -52,7 +52,7 @@ function SingleQuestion({
       </div>
       {q.custom && (
         <div className="q-custom">
-          <input className="search" placeholder="Other…" value={customText}
+          <input className="inline-search" style={{ marginBottom: 0 }} placeholder="Other…" value={customText}
             onChange={(e) => setCustomText(e.target.value)} />
         </div>
       )}

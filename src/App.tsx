@@ -91,7 +91,7 @@ export default function App() {
     };
   }, [pinEnabled]);
 
-  if (!ready) return <div className="screen"><div className="loading"><div className="spinner" /></div></div>;
+  if (!ready) return <div className="screen"><div className="spinner" /></div>;
 
   let view: JSX.Element;
   switch (route.name) {

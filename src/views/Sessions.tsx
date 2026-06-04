@@ -11,57 +11,58 @@ export default function Sessions({ dir }: { dir: string }) {
   const name = leaf(dir);
 
   const load = () => api.sessions(dir)
-    .then((ss) => setSessions(ss.filter((s) => !s.parentID).sort((a, b) => (b.time?.updated || 0) - (a.time?.updated || 0))))
-    .catch((e) => setErr(String(e.message || e)));
+    .then(ss => setSessions(ss.filter(s => !s.parentID).sort((a, b) => (b.time?.updated || 0) - (a.time?.updated || 0))))
+    .catch(e => setErr(String(e.message || e)));
   useEffect(() => { load(); }, [dir]);
 
   const create = async () => {
     try { const s = await api.createSession(dir); location.hash = "#/p/" + b64uEnc(dir) + "/s/" + s.id; }
     catch (e: any) { setErr(String(e.message || e)); }
   };
-
   const deleteSession = async (id: string) => {
     try { await api.deleteSession(dir, id); load(); } catch (e: any) { setErr(String(e.message || e)); }
   };
-
   const renameSession = async (id: string, title: string) => {
-    const newTitle = prompt("Rename session:", title);
-    if (!newTitle || newTitle === title) return;
-    try { await api.updateSession(dir, id, { title: newTitle }); load(); } catch (e: any) { setErr(String(e.message || e)); }
+    const t = prompt("Rename session:", title);
+    if (!t || t === title) return;
+    try { await api.updateSession(dir, id, { title: t }); load(); } catch (e: any) { setErr(String(e.message || e)); }
   };
 
-  const filtered = (sessions || []).filter((s) =>
+  const filtered = (sessions || []).filter(s =>
     (s.title || "Untitled").toLowerCase().includes(q.toLowerCase())
   );
 
   return (
-    <div className="screen" style={{ position: "relative" }}>
+    <div className="screen">
       <div className="topbar">
         <button className="iconbtn" onClick={() => history.length > 1 ? history.back() : (location.hash = "#/")}>‹</button>
         <div className="title">{name}<div className="sub">{sessions ? sessions.length + " sessions" : ""}</div></div>
       </div>
       <div className="content">
+        {err && <div className="errbox" style={{ margin: "12px 16px" }}>{err}</div>}
+        {(sessions && sessions.length > 3) && (
+          <div className="search-bar">
+            <input className="search-input" placeholder="Search sessions…" value={q} onChange={e => setQ(e.target.value)} />
+          </div>
+        )}
         <div className="list">
-          {sessions && sessions.length > 3 && (
-            <input className="search" placeholder="Search sessions…" value={q} onChange={(e) => setQ(e.target.value)} />
-          )}
-          {err && <div className="errbox">{err}</div>}
-          {!sessions && !err && <div className="loading"><div className="spinner" /></div>}
-          {sessions && filtered.length === 0 && <div className="empty">{q ? "No matches." : t("sessions.empty")}</div>}
-          {filtered.map((s) => (
-            <div key={s.id} className="card-row">
-              <button className="card" style={{ flex: 1 }} onClick={() => (location.hash = "#/p/" + b64uEnc(dir) + "/s/" + s.id)}>
-                <div className="avatar">💬</div>
-                <div className="meta">
-                  <div className="name">{s.title || "Untitled session"}</div>
-                  <div className="desc">{timeAgo(s.time?.updated || s.time?.created)}</div>
-                </div>
-                <div className="chev">›</div>
-              </button>
-              <button className="iconbtn" style={{ color: "var(--muted)", padding: "0 6px", fontSize: 16 }}
-                onClick={(e) => { e.stopPropagation(); renameSession(s.id, s.title || ""); }}>✎</button>
-              <button className="iconbtn" style={{ color: "var(--danger)", padding: "0 6px", fontSize: 14 }}
-                onClick={(e) => { e.stopPropagation(); if (confirm("Delete this session?")) deleteSession(s.id); }}>✕</button>
+          {!sessions && !err && <div className="spinner" />}
+          {sessions && filtered.length === 0 && <div className="empty-state"><div className="empty-icon">💬</div>{q ? "No matches" : t("sessions.empty")}</div>}
+          {filtered.map((s, i) => (
+            <div key={s.id}>
+              {i > 0 && <div className="divider" />}
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <button className="row" style={{ flex: 1 }} onClick={() => (location.hash = "#/p/" + b64uEnc(dir) + "/s/" + s.id)}>
+                  <div className="row-icon" style={{ background: "var(--accent)", fontSize: 16 }}>💬</div>
+                  <div className="row-body">
+                    <div className="row-title">{s.title || "Untitled session"}</div>
+                    <div className="row-sub">{timeAgo(s.time?.updated || s.time?.created)}</div>
+                  </div>
+                  <div className="row-chev">›</div>
+                </button>
+                <button className="iconbtn" style={{ color: "var(--muted)" }} onClick={e => { e.stopPropagation(); renameSession(s.id, s.title || ""); }}>✎</button>
+                <button className="iconbtn" style={{ color: "var(--danger)", fontSize: 14 }} onClick={e => { e.stopPropagation(); if (confirm("Delete?")) deleteSession(s.id); }}>✕</button>
+              </div>
             </div>
           ))}
         </div>

@@ -12,42 +12,50 @@ export default function Projects() {
 
   useEffect(() => {
     if (!isConfigured()) { location.hash = "#/settings"; return; }
-    api.projects()
-      .then((ps) => setProjects(ps.filter((p) => p.id !== "global" && p.worktree && p.worktree !== "/").sort((a, b) => (b.time?.updated || 0) - (a.time?.updated || 0))))
-      .catch((e) => setErr(String(e.message || e)));
+    api.projects().then(setProjects).catch(e => setErr(String(e.message || e)));
   }, []);
 
-  const filtered = (projects || []).filter((p) => leaf(p.worktree).toLowerCase().includes(q.toLowerCase()));
+  const filtered = (projects || []).filter(p => {
+    const n = leaf(p.worktree).toLowerCase();
+    return !q || n.includes(q.toLowerCase());
+  });
 
   return (
     <div className="screen">
-      <div className="topbar"><div className="title">{t("app.title")}<div className="sub">{projects ? projects.length + " projects" : ""}</div></div></div>
+      <div className="topbar">
+        <div className="title">{t("projects.title")}<div className="sub">{projects ? projects.length + " projects" : ""}</div></div>
+      </div>
       <div className="content">
+        {err && <div className="errbox" style={{ margin: "12px 16px" }}>{err}</div>}
+        <div className="search-bar">
+          <input className="search-input" placeholder={t("projects.search")} value={q} onChange={e => setQ(e.target.value)} />
+        </div>
         <div className="list">
-          <input className="search" placeholder={t("projects.search")} value={q} onChange={(e) => setQ(e.target.value)} />
-          <button className="card" onClick={() => (location.hash = "#/browse")} style={{ marginBottom: 10 }}>
-            <div className="avatar" style={{ background: "linear-gradient(135deg,#3a3a40,#26262b)" }}>📁</div>
-            <div className="meta">
-              <div className="name">Browse folders…</div>
-              <div className="desc">Open opencode in any folder</div>
+          <button className="row" onClick={() => (location.hash = "#/browse")}>
+            <div className="row-icon" style={{ background: "var(--surface2)", color: "var(--muted)", fontSize: 20 }}>📁</div>
+            <div className="row-body">
+              <div className="row-title">Browse folders…</div>
+              <div className="row-sub">Open opencode in any folder</div>
             </div>
-            <div className="chev">›</div>
+            <div className="row-chev">›</div>
           </button>
-          {err && <div className="errbox">{err}</div>}
-          {!projects && !err && <div className="loading"><div className="spinner" /></div>}
-          {projects && filtered.length === 0 && <div className="empty">{t("projects.empty")}</div>}
-          {filtered.map((p) => {
+          {!projects && !err && <div className="spinner" />}
+          {projects && filtered.length === 0 && <div className="empty-state"><div className="empty-icon">📂</div>{t("projects.empty")}</div>}
+          {filtered.map((p, i) => {
             const name = leaf(p.worktree);
             const [c1, c2] = hashColor(p.worktree);
             return (
-              <button key={p.id} className="card" onClick={() => (location.hash = "#/p/" + b64uEnc(p.worktree))}>
-                <div className="avatar" style={{ background: `linear-gradient(135deg,${c1},${c2})` }}>{name.slice(0, 2)}</div>
-                <div className="meta">
-                  <div className="name">{name}</div>
-                  <div className="desc">{(p.vcs || "folder") + " · " + timeAgo(p.time?.updated)}</div>
-                </div>
-                <div className="chev">›</div>
-              </button>
+              <div key={p.id}>
+                {i > 0 && <div className="divider" />}
+                <button className="row" onClick={() => (location.hash = "#/p/" + b64uEnc(p.worktree))}>
+                  <div className="row-icon" style={{ background: `linear-gradient(135deg,${c1},${c2})` }}>{name.slice(0, 2).toUpperCase()}</div>
+                  <div className="row-body">
+                    <div className="row-title">{name}</div>
+                    <div className="row-sub">{(p.vcs || "folder") + " · " + timeAgo(p.time?.updated)}</div>
+                  </div>
+                  <div className="row-chev">›</div>
+                </button>
+              </div>
             );
           })}
         </div>

@@ -6,7 +6,7 @@ export default function PermissionPrompt({
 }: { req: PermissionRequest; onRespond: (r: "once" | "always" | "reject") => void }) {
   const detail = (req.patterns && req.patterns.join(", ")) || (req.tool ? "call " + req.tool.callID : "");
   return (
-    <div className="perm">
+    <div className="perm-block">
       <div className="h">{t("perm.title")}: {req.permission || "action"}</div>
       {detail && <div className="d">{detail}</div>}
       <div className="row">
