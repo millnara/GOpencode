@@ -81,16 +81,16 @@ Goal: GOpencode does everything the prototype does, verified live.
 ---
 
 ## Phase 2 — Connection, Settings, native networking
-- [ ] **2.1** Settings polish (`src/views/Settings.tsx`): validate/normalize base URL; add a
+- [x] **2.1** Settings polish (`src/views/Settings.tsx`): validate/normalize base URL; add a
       **"Test connection"** button (calls `GET /path`, shows ok/error).
-- [ ] **2.2** First-run: if `!isConfigured()`, route to Settings with guidance.
+- [x] **2.2** First-run: if `!isConfigured()`, route to Settings with guidance.
 - [ ] **2.3** CORS for direct native mode: document + provide a script/snippet to launch opencode
       with `--cors` for the Capacitor origin (`http://localhost`, `https://localhost`); verify a
       built preview can call the server directly (no Vite proxy).
 - [ ] **2.4** Confirm `streamEvents()` (fetch SSE) works against the server **directly** with the
       `Authorization` header (not just through the dev proxy).
-- [ ] **2.5** Persist last project + session (Preferences) and restore on launch; honor deep links.
-- [ ] **2.6 Fire-and-forget send (kills false "Failed to fetch")** — IMPORTANT mobile fix.
+- [x] **2.5** Persist last project + session (Preferences) and restore on launch; honor deep links.
+- [x] **2.6 Fire-and-forget send (kills false "Failed to fetch")** — IMPORTANT mobile fix.
   - Problem: a blocking `POST /session/{id}/message` holds one HTTP request open for the *entire*
     turn (minutes). When the phone sleeps/switches networks, that request dies and the browser
     throws `Failed to fetch` → a scary false "Send failed", even though the server got the message
@@ -105,7 +105,7 @@ Goal: GOpencode does everything the prototype does, verified live.
     on anything missed while backgrounded, and clear `busy` if the last assistant turn has a
     `step-finish`. Port from prototype `onSendError()` / `refreshChat()` in `../opencode-remote/public/app.js`.
   - Accept: lock the phone mid-turn, unlock → the reply is there; no false "Send failed".
-- [ ] **2.7 Question / multiple-choice prompt UI** — agents ask selectable questions; render them.
+- [x] **2.7 Question / multiple-choice prompt UI** — agents ask selectable questions; render them.
   - opencode API (verified): `Event.question.asked` → `{ id, sessionID, questions:[{ question,
     header, options:[{label, description}], multiple, custom }], tool }`. Reply:
     `POST /question/{id}/reply` body `{ answers: [[string]] }` (one `string[]` of chosen labels per
@@ -119,7 +119,7 @@ Goal: GOpencode does everything the prototype does, verified live.
     `sid`), render prompts above the composer exactly like permission prompts.
   - Accept: an agent question shows option cards; select + submit answers it and the turn continues;
     `multiple` and `custom` ("Other") both work.
-- [ ] **2.8 Wedged-session detection + one-tap Resume** — REQUIRED reliability fix (bit us twice).
+- [x] **2.8 Wedged-session detection + one-tap Resume** — REQUIRED reliability fix (bit us twice).
   - Problem: an interrupted turn (server/connection hiccup mid-turn) leaves the session wedged —
     either a **dangling tool** (running/pending, no `step-finish`) or an **empty/incomplete assistant
     message**, or a **trailing user message that got no reply**. opencode surfaces none of this; the
@@ -252,3 +252,11 @@ third party is a tiny signaling server used for connection setup — it never se
   new **Phase 7 — self-contained P2P WebRTC transport** (QR pairing, DTLS E2E encryption, LAN-direct
   + STUN/TURN fallback) to replace the manual Tailscale dependency. Suggested order: 2.7 next (core
   chat gap), then continue P2→P3 (APK on existing transport), then Phase 7 to drop Tailscale.
+- 2026-06-04 GLM 5.1 (session 2): Phase 2 substantially complete (2.1–2.2, 2.5–2.8). Remaining:
+  2.3–2.4 (CORS + direct SSE — doc-only, needs admin action on server). Built:
+  - 2.7 QuestionPrompt (multi-select options, custom text, question.asked/replied SSE)
+  - 2.6 prompt_async fire-and-forget send + visibilitychange history reload
+  - 2.1 Test-connection button in Settings, URL normalization
+  - 2.5 Persist/restore last route on launch
+  - 2.8 Wedged-session detection + ⟳ Resume banner
+  Build green. All verified against live server. Phase 3 (APK) is next logical step.

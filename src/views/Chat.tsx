@@ -31,6 +31,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [model, setModel] = useState<ModelRef | null>(null);
   const [agent, setAgent] = useState("build");
   const [sheet, setSheet] = useState<null | "model" | "agent">(null);
+  const [wedged, setWedged] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -74,6 +75,42 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     if (c.notifyOnDone) notifyDone(title || "opencode", lastAssistantText());
   };
 
+  const checkWedged = () => {
+    const gs = [...msgs.current.values()].sort((a, b) => (a.info.time?.created || 0) - (b.info.time?.created || 0));
+    if (gs.length === 0) { setWedged(false); return; }
+    const last = gs[gs.length - 1];
+    if (last.info.role === "user") { setWedged(true); return; }
+    if (last.info.role === "assistant") {
+      const hasStepFinish = last.parts.some((p) => p.type === "step-finish");
+      const hasStuckTool = last.parts.some((p: any) => p.type === "tool" && p.state && (p.state.status === "running" || p.state.status === "pending"));
+      const hasError = !!(last.info as any).error;
+      const hasContent = last.parts.some((p) => p.type === "text" || p.type === "tool");
+      if (hasStuckTool && !hasStepFinish) { setWedged(true); return; }
+      if (!hasContent && !hasStepFinish && !hasError) { setWedged(true); return; }
+    }
+    setWedged(false);
+  };
+
+  const lastUserText = (): string | null => {
+    const gs = [...msgs.current.values()].sort((a, b) => (a.info.time?.created || 0) - (b.info.time?.created || 0));
+    for (let i = gs.length - 1; i >= 0; i--) {
+      if (gs[i].info.role === "user") {
+        const tp: any = gs[i].parts.find((p) => p.type === "text");
+        if (tp?.text) return tp.text;
+      }
+    }
+    return null;
+  };
+
+  const resume = async () => {
+    if (!model) return;
+    setWedged(false);
+    try { await api.abort(dir, sid); } catch { /* */ }
+    const text = lastUserText() || "Continue.";
+    setBusy(true); wasBusy.current = true;
+    await api.promptAsync(dir, sid, model, agent, text);
+  };
+
   const handleEvent = (ev: OcEvent) => {
     const p = ev.properties || {};
     switch (ev.type) {
@@ -83,7 +120,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
       case "message.part.removed": if (p.sessionID === sid) { const g = msgs.current.get(p.messageID); if (g) { g.parts = g.parts.filter((x) => x.id !== p.partID); schedule(); } } break;
       case "message.removed": if (p.sessionID === sid) { msgs.current.delete(p.messageID); schedule(); } break;
       case "session.status":
-        if (p.sessionID === sid) { const b = p.status?.type === "busy"; setBusy(b); if (b) wasBusy.current = true; else if (wasBusy.current) { wasBusy.current = false; onDone(); } }
+        if (p.sessionID === sid) { const b = p.status?.type === "busy"; setBusy(b); if (b) { wasBusy.current = true; setWedged(false); } else if (wasBusy.current) { wasBusy.current = false; onDone(); } }
         break;
       case "session.idle": if (p.sessionID === sid) { setBusy(false); if (wasBusy.current) { wasBusy.current = false; onDone(); } } break;
       case "session.error": if (p.sessionID === sid) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "⚠ " + (p.error?.name || "error") + ": " + (p.error?.data?.message || "") } as any); setBusy(false); schedule(); } break;
@@ -110,6 +147,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         setModel(lastA ? { providerID: lastA.providerID, modelID: lastA.modelID } : defaultModel(prov));
         if (lastA?.agent) setAgent(lastA.agent);
         force();
+        checkWedged();
         api.session(dir, sid).then((s) => s?.title && setTitle(s.title)).catch(() => {});
       } catch (e: any) {
         ensure("load_err").parts.push({ id: "e", type: "text", text: "Failed to load: " + (e.message || e) } as any); force();
@@ -211,6 +249,12 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
               onReply={(answers) => replyQuestion(qr.id, answers)}
               onReject={() => rejectQuestion(qr.id)} />
           ))}
+          {wedged && !busy && (
+            <div className="errbox" style={{ borderColor: "var(--warn)", color: "var(--warn)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>Session appears stuck</span>
+              <button className="q-submit" style={{ marginTop: 0, padding: "6px 14px", fontSize: 13 }} onClick={resume}>⟳ Resume</button>
+            </div>
+          )}
         </div>
       </div>
 
