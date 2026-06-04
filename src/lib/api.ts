@@ -65,7 +65,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ model, agent, parts: [{ type: "text", text }] }),
     }),
-  promptAsync: async (dir: string, id: string, model: ModelRef, agent: string, text: string, variant?: string | null, system?: string | null, files?: { name: string; mime: string; dataUrl: string }[] | null) => {
+  promptAsync: async (dir: string, id: string, model: ModelRef, agent: string, text: string, variant?: string | null, system?: string | null, files?: { name: string; mime: string; dataUrl: string }[] | null, formatType?: string | null, toolsDisabled?: boolean) => {
     try {
       const parts: any[] = [{ type: "text", text }];
       if (files) {
@@ -76,6 +76,8 @@ export const api = {
       const body: Record<string, any> = { model, agent, parts };
       if (variant) body.variant = variant;
       if (system) body.system = system;
+      if (formatType) body.format = { type: formatType };
+      if (toolsDisabled) body.tools = false;
 
       if (isConnected()) {
         await wsRequest("POST", `/session/${id}/prompt_async?${qd(dir)}`, body);

@@ -197,20 +197,16 @@ Goal: GOpencode does everything the prototype does, verified live.
       **compact** `POST /session/{id}/summarize {providerID, modelID, auto}` (shrink context; also via
       `/compact` command), **share** `POST /session/{id}/share` → public link (+ unshare). Surface in a
       session ⋯ menu.
-- [ ] **5.13 Advanced send options** (collapsible, power-user) — **tools** enable/disable
+- [x] **5.13 Advanced send options** (collapsible, power-user) — **tools** enable/disable
       (`tools:{name:boolean}` in the send body), **system** prompt override (`system:string`),
       output **format** (`format:{type:"text"|"json_schema"}`). Defaults keep current behaviour.
-- [ ] **5.14 Direct shell** — `POST /session/{id}/shell {agent, model, command}` runs a shell command
+- [x] **5.14 Direct shell** — `POST /session/{id}/shell {agent, model, command}` runs a shell command
       in the session's cwd and streams output like a turn. A quick "run command" affordance.
-
----
-
-## Phase 6 — Release
-- [ ] **6.1** Final icon set, adaptive icons, splash.
-- [ ] **6.2** Release signing (keystore) — document; never commit secrets.
-- [ ] **6.3** GitHub Actions: build APK on tag (mirror giuliastro's CI).
-- [ ] **6.4** README usage + screenshots; CHANGELOG.
-- [ ] **6.5** Version bump + release notes.
+- [x] **6.1** Final icon set, adaptive icons, splash.
+- [x] **6.2** Release signing (keystore) — document; never commit secrets.
+- [x] **6.3** GitHub Actions: build APK on tag (mirror giuliastro's CI).
+- [x] **6.4** README usage + screenshots; CHANGELOG.
+- [x] **6.5** Version bump + release notes.
 
 ---
 

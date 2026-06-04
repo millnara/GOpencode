@@ -52,6 +52,35 @@ cd android && ./gradlew assembleDebug
 # APK at android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Release signing (Android)
+
+```bash
+# Generate keystore (one-time)
+keytool -genkey -v -keystore gopencode.keystore -alias gopencode \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -storepass YOUR_STORE_PASS -keypass YOUR_KEY_PASS
+
+# Create android/key.properties
+echo "storeFile=../gopencode.keystore" > android/key.properties
+echo "storePassword=YOUR_STORE_PASS" >> android/key.properties
+echo "keyAlias=gopencode" >> android/key.properties
+echo "keyPassword=YOUR_KEY_PASS" >> android/key.properties
+
+# Build release APK
+cd android && ./gradlew assembleRelease
+```
+
+Never commit `gopencode.keystore` or `key.properties`. Add both to `.gitignore`.
+
+### Desktop installer
+
+```bash
+cd desktop
+go build -ldflags="-s -w" -o gopencode.exe .
+makensis installer.nsi
+# Installer at desktop/dist/GOpencode-Setup-*.exe
+```
+
 ## Tech
 
 React + TypeScript + Vite + Capacitor. Talks directly to the opencode HTTP API. Streams via SSE (fetch-based for auth header support).

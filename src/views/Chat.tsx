@@ -55,6 +55,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [wedged, setWedged] = useState(false);
   const [turnMeta, setTurnMeta] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<{ name: string; dataUrl: string; mime: string }[]>([]);
+  const [formatMode, setFormatMode] = useState<string | null>(null);
+  const [toolsDisabled, setToolsDisabled] = useState(false);
   const [offline, setOffline] = useState(!navigator.onLine);
   const contentRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -132,7 +134,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     try { await api.abort(dir, sid); } catch { /* */ }
     const text = lastUserText() || "Continue.";
     setBusy(true); wasBusy.current = true;
-    await api.promptAsync(dir, sid, model, agent, text, variant, sysPrompt || null, attachments.length ? attachments : null);
+    await api.promptAsync(dir, sid, model, agent, text, variant, sysPrompt || null, attachments.length ? attachments : null, formatMode, toolsDisabled);
   };
 
   const handleEvent = (ev: OcEvent) => {
@@ -373,6 +375,17 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           <div style={{ padding: "4px 2px", display:"flex", flexDirection:"column", gap:6 }}>
             <textarea className="sysinput" rows={2} placeholder="System prompt override (optional)…" value={sysPrompt}
               onChange={(e) => setSysPrompt(e.target.value)} />
+            <div style={{ display:"flex", gap:6 }}>
+              <select className="pill" style={{ padding: "5px 10px" }} value={formatMode || ""}
+                onChange={(e) => setFormatMode(e.target.value || null)}>
+                <option value="">Format: text</option>
+                <option value="json_schema">Format: JSON Schema</option>
+              </select>
+              <label className="pill" style={{ cursor:"pointer" }}>
+                <input type="checkbox" checked={toolsDisabled} onChange={(e) => setToolsDisabled(e.target.checked)} style={{ margin:0, accentColor:"var(--accent)" }} />
+                <span>No tools</span>
+              </label>
+            </div>
           </div>
         )}
         <button style={{ fontSize:11, color:"var(--faint)", padding:"2px 6px", alignSelf:"flex-start" }}
