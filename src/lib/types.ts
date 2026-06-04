@@ -64,5 +64,26 @@ export interface ProvidersResponse {
 }
 export interface Agent { name: string; mode?: string; }
 
+export interface ProviderConfig {
+  id: string;
+  name?: string;
+  models: Record<string, { name?: string }>;
+}
+export interface ConfigProvidersResponse { providers: ProviderConfig[]; }
+
+export interface Command {
+  name: string;
+  description?: string;
+}
+
+export interface FileEntry {
+  name: string;
+  path: string;
+  absolute: string;
+  type: "directory" | "file";
+  ignored?: boolean;
+}
+export interface PathResponse { home: string; }
+
 // SSE event envelope
 export interface OcEvent { type: string; properties: any; }

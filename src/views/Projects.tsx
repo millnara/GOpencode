@@ -25,6 +25,14 @@ export default function Projects() {
       <div className="content">
         <div className="list">
           <input className="search" placeholder={t("projects.search")} value={q} onChange={(e) => setQ(e.target.value)} />
+          <button className="card" onClick={() => (location.hash = "#/browse")} style={{ marginBottom: 10 }}>
+            <div className="avatar" style={{ background: "linear-gradient(135deg,#3a3a40,#26262b)" }}>📁</div>
+            <div className="meta">
+              <div className="name">Browse folders…</div>
+              <div className="desc">Open opencode in any folder</div>
+            </div>
+            <div className="chev">›</div>
+          </button>
           {err && <div className="errbox">{err}</div>}
           {!projects && !err && <div className="loading"><div className="spinner" /></div>}
           {projects && filtered.length === 0 && <div className="empty">{t("projects.empty")}</div>}

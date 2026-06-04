@@ -1,6 +1,7 @@
 import { getConn } from "./settings";
 import type {
   Project, Session, MessageWithParts, ProvidersResponse, Agent, OcEvent, ModelRef,
+  ConfigProvidersResponse, Command, FileEntry, PathResponse,
 } from "./types";
 
 function authHeader(): Record<string, string> {
@@ -45,6 +46,15 @@ export const api = {
     }),
   providers: () => req<ProvidersResponse>("/provider"),
   agents: () => req<Agent[]>("/agent"),
+  configProviders: () => req<ConfigProvidersResponse>("/config/providers"),
+  commands: () => req<Command[]>("/command"),
+  runCommand: (dir: string, id: string, command: string, args: string) =>
+    req(`/session/${id}/command?${qd(dir)}`, {
+      method: "POST",
+      body: JSON.stringify({ command, arguments: args }),
+    }),
+  listDir: (dir: string) => req<FileEntry[]>(`/file?path=.&${qd(dir)}`),
+  path: () => req<PathResponse>("/path"),
 };
 
 /**

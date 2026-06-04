@@ -1,8 +1,10 @@
 import { useEffect, useReducer, useRef, useState } from "react";
-import { api, streamEvents, defaultModel, connectedProviders } from "../lib/api";
-import type { ModelRef, OcEvent, PermissionRequest, ProvidersResponse, Agent, Part } from "../lib/types";
+import { api, streamEvents, defaultModel } from "../lib/api";
+import type { ModelRef, OcEvent, PermissionRequest, ProvidersResponse, Agent, Part, ProviderConfig, Command } from "../lib/types";
 import MessageView, { type Group } from "../components/MessageView";
 import PermissionPrompt from "../components/PermissionPrompt";
+import ModelSheet from "../components/ModelSheet";
+import CommandMenu from "../components/CommandMenu";
 import { getConn } from "../lib/settings";
 import { playDone } from "../lib/sound";
 import { notifyDone } from "../lib/notify";
@@ -21,14 +23,15 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [pending, setPending] = useState<string | null>(null);
   const [perms, setPerms] = useState<PermissionRequest[]>([]);
   const [providers, setProviders] = useState<ProvidersResponse | null>(null);
+  const [providerConfig, setProviderConfig] = useState<ProviderConfig[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [commands, setCommands] = useState<Command[]>([]);
   const [model, setModel] = useState<ModelRef | null>(null);
   const [agent, setAgent] = useState("build");
   const [sheet, setSheet] = useState<null | "model" | "agent">(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
-  // ---- helpers operating on the message map ----
   const ensure = (messageID: string): Group => {
     let g = msgs.current.get(messageID);
     if (!g) { g = { info: { id: messageID, role: "assistant", sessionID: sid, time: { created: Date.now() } } as any, parts: [] }; msgs.current.set(messageID, g); }
@@ -88,13 +91,14 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     }
   };
 
-  // ---- lifecycle ----
   useEffect(() => {
     let stop = () => {};
     (async () => {
       try {
         const prov = await api.providers(); setProviders(prov);
         const ags = (await api.agents()).filter((a) => a.mode !== "subagent"); setAgents(ags);
+        try { const cp = await api.configProviders(); setProviderConfig(cp.providers || []); } catch { /* use fallback */ }
+        try { setCommands(await api.commands()); } catch { /* no commands */ }
         const hist = await api.messages(dir, sid);
         msgs.current = new Map();
         for (const m of hist) msgs.current.set(m.info.id, { info: m.info, parts: m.parts || [] });
@@ -114,13 +118,27 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
 
   useEffect(() => { const c = contentRef.current; if (c && c.scrollHeight - c.scrollTop - c.clientHeight < 160) c.scrollTop = c.scrollHeight; });
 
-  // ---- actions ----
   const send = async () => {
     const text = input.trim(); if (!text || busy || !model) return;
     setInput(""); if (taRef.current) taRef.current.style.height = "auto";
     setPending(text); setBusy(true); wasBusy.current = true;
-    try { await api.send(dir, sid, model, agent, text); }
-    catch (e: any) { ensure("send_err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Send failed: " + (e.message || e) } as any); setBusy(false); force(); }
+    try {
+      let cmdName: string | null = null;
+      let cmdArgs = "";
+      if (text.startsWith("/")) {
+        const sp = text.indexOf(" ");
+        const name = (sp < 0 ? text.slice(1) : text.slice(1, sp)).trim();
+        if (commands.some((c) => c.name === name)) {
+          cmdName = name;
+          cmdArgs = sp < 0 ? "" : text.slice(sp + 1).trim();
+        }
+      }
+      if (cmdName) {
+        await api.runCommand(dir, sid, cmdName, cmdArgs);
+      } else {
+        await api.send(dir, sid, model, agent, text);
+      }
+    } catch (e: any) { ensure("send_err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Send failed: " + (e.message || e) } as any); setBusy(false); force(); }
   };
   const abort = async () => { try { await api.abort(dir, sid); } catch { /* */ } setBusy(false); };
   const respond = async (id: string, r: "once" | "always" | "reject") => {
@@ -130,6 +148,14 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
 
   const groups = [...msgs.current.values()].sort((a, b) => (a.info.time?.created || 0) - (b.info.time?.created || 0));
   const modelLabel = model?.modelID || "model";
+
+  const modelProviders = providerConfig.length > 0
+    ? providerConfig
+    : (() => {
+        if (!providers) return [];
+        const ids = Array.isArray(providers.connected) ? providers.connected.map((x) => x.id) : Object.keys(providers.connected || {});
+        return ids.map((id) => ({ id, name: providers.all?.[id]?.name || id, models: providers.all?.[id]?.models || {} }));
+      })();
 
   return (
     <div className="screen">
@@ -152,6 +178,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           <button className="pill" onClick={() => setSheet("model")}>🧠 <b>{modelLabel}</b></button>
           <button className="pill" onClick={() => setSheet("agent")}>⚙ <b>{agent}</b></button>
         </div>
+        <CommandMenu commands={commands} value={input} onPick={(name) => { setInput("/" + name + " "); taRef.current?.focus(); }} />
         {busy && <div className="statusline"><div className="spinner" /><span>{t("chat.working")}</span></div>}
         <div className="box">
           <textarea
@@ -163,26 +190,18 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         </div>
       </div>
 
-      {sheet && providers && (
+      {sheet === "model" && (
+        <ModelSheet providers={modelProviders} current={model} onPick={setModel} onClose={() => setSheet(null)} />
+      )}
+      {sheet === "agent" && (
         <div className="sheet-bg" onClick={(e) => { if (e.target === e.currentTarget) setSheet(null); }}>
           <div className="sheet">
-            <h3>{sheet === "model" ? "Model" : "Agent"}</h3>
-            {sheet === "model"
-              ? connectedProviders(providers).flatMap((pr) =>
-                  Object.keys(pr.models).length
-                    ? Object.keys(pr.models).map((mid) => ({ providerID: pr.id, modelID: mid, name: pr.models[mid].name || mid, sub: pr.name }))
-                    : [{ providerID: pr.id, modelID: providers.default[pr.id], name: providers.default[pr.id], sub: pr.name }]
-                ).map((o) => (
-                  <div key={o.providerID + o.modelID} className={"opt" + (model?.modelID === o.modelID ? " sel" : "")}
-                    onClick={() => { setModel({ providerID: o.providerID, modelID: o.modelID }); setSheet(null); }}>
-                    <span>{o.name}</span><span className="desc">{o.sub}</span>
-                  </div>
-                ))
-              : (agents.length ? agents.map((a) => a.name) : ["build", "plan"]).map((a) => (
-                  <div key={a} className={"opt" + (agent === a ? " sel" : "")} onClick={() => { setAgent(a); setSheet(null); }}>
-                    <span>{a}</span>{agent === a && <span>✓</span>}
-                  </div>
-                ))}
+            <h3>Agent</h3>
+            {(agents.length ? agents.map((a) => a.name) : ["build", "plan"]).map((a) => (
+              <div key={a} className={"opt" + (agent === a ? " sel" : "")} onClick={() => { setAgent(a); setSheet(null); }}>
+                <span>{a}</span>{agent === a && <span>✓</span>}
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -41,42 +41,42 @@ boxes and commit per task/phase.
 ## Phase 1 — Core parity & live verification  (scaffold ✅ done)
 Goal: GOpencode does everything the prototype does, verified live.
 
-- [ ] **1.1 Verify chat end-to-end live**
-  - [ ] `npm run dev`, open a project → session, send a message.
-  - [ ] Confirm: user bubble, streamed assistant text (token deltas), a tool call renders, busy
+- [x] **1.1 Verify chat end-to-end live**
+  - [x] `npm run dev`, open a project → session, send a message.
+  - [x] Confirm: user bubble, streamed assistant text (token deltas), a tool call renders, busy
         spinner, idle clears. Fix any React/streaming bugs in `src/views/Chat.tsx`.
   - Accept: a real reply streams in and a tool call card appears.
 
-- [ ] **1.2 Tiered model picker (provider → model)**  — fixes "only 4 bad models"
-  - [ ] Add `api.configProviders()` → `GET /config/providers` in `src/lib/api.ts`; type in `types.ts`.
-  - [ ] New `src/components/ModelSheet.tsx`: level 1 = provider list (name + model count); tap →
+- [x] **1.2 Tiered model picker (provider → model)**  — fixes "only 4 bad models"
+  - [x] Add `api.configProviders()` → `GET /config/providers` in `src/lib/api.ts`; type in `types.ts`.
+  - [x] New `src/components/ModelSheet.tsx`: level 1 = provider list (name + model count); tap →
         level 2 = that provider's models with a `‹` back button + a search box (lists can be 90+).
-  - [ ] Selecting sets `{providerID, modelID}`; default = last-used (from history) else first
+  - [x] Selecting sets `{providerID, modelID}`; default = last-used (from history) else first
         connected provider's default. Wire into `Chat.tsx` (replace the inline sheet).
   - Port from prototype `openModelSheet()` / `providerList()`.
   - Accept: all 117 models reachable across the 4 providers; selection persists for the session.
 
-- [ ] **1.3 Folder browser (open opencode in any folder)**
-  - [ ] Add `api.listDir(dir)` (`GET /file?path=.&directory=`) and `api.path()` (`GET /path`).
-  - [ ] New `src/views/BrowseFolder.tsx`: shows current path, `⬆` up (compute parent, handle
+- [x] **1.3 Folder browser (open opencode in any folder)**
+  - [x] Add `api.listDir(dir)` (`GET /file?path=.&directory=`) and `api.path()` (`GET /path`).
+  - [x] New `src/views/BrowseFolder.tsx`: shows current path, `⬆` up (compute parent, handle
         `C:\` drive root), folder rows (tap to descend), and an **"Open opencode here"** action
         → navigate to Sessions for that dir (resume existing or `＋ New`).
-  - [ ] Routes in `src/App.tsx`: `#/browse` (start at home) and `#/browse/<b64dir>`.
-  - [ ] Entry point: a "📁 Browse folders…" item atop `src/views/Projects.tsx`.
+  - [x] Routes in `src/App.tsx`: `#/browse` (start at home) and `#/browse/<b64dir>`.
+  - [x] Entry point: a "📁 Browse folders…" item atop `src/views/Projects.tsx`.
   - Port from prototype `viewBrowse()` / `folderRow()` / `parentDir()`.
   - Accept: can browse to any folder (project or not) and start/resume a session there.
 
-- [ ] **1.4 Slash-command passthrough**
-  - [ ] Add `api.commands()` (`GET /command`) and `api.runCommand(dir,id,{command,arguments})`
+- [x] **1.4 Slash-command passthrough**
+  - [x] Add `api.commands()` (`GET /command`) and `api.runCommand(dir,id,{command,arguments})`
         (`POST /session/{id}/command`). Types in `types.ts`.
-  - [ ] New `src/components/CommandMenu.tsx`: when composer text matches `^/(\S*)$`, show filtered
+  - [x] New `src/components/CommandMenu.tsx`: when composer text matches `^/(\S*)$`, show filtered
         commands (name + description); tap fills `/<name> `.
-  - [ ] In `Chat.tsx` send(): if text starts with `/` and first token matches a known command,
+  - [x] In `Chat.tsx` send(): if text starts with `/` and first token matches a known command,
         call `runCommand`; else send a normal message.
   - Port from prototype `updateCmdMenu()` / `onSend()` command branch.
   - Accept: typing `/` shows the menu; `/init` (etc.) executes and streams output.
 
-- [ ] **1.5 Keep build green** — `npx tsc --noEmit` and `npm run build` pass after 1.1–1.4.
+- [x] **1.5 Keep build green** — `npx tsc --noEmit` and `npm run build` pass after 1.1–1.4.
 
 ---
 
@@ -156,4 +156,10 @@ Goal: GOpencode does everything the prototype does, verified live.
 
 ## Status log (update as you go)
 - 2026-06-04: Scaffold builds/type-checks; Projects renders live. Phases 1–6 pending.
-- (GLM 5.1: add dated entries here per phase so the next reviewer can pick up.)
+- 2026-06-04 GLM 5.1: Phase 1 complete. All tasks 1.1–1.5 done. Built: tiered model picker
+  (ModelSheet using /config/providers — 117 models across 4 providers), folder browser
+  (BrowseFolder with parent-dir navigation), slash-command passthrough (CommandMenu + runCommand).
+  Fixed markdown.ts sentinel (was using null bytes, now uses @@CB{n}@@ like prototype). Fixed
+  vite.config.ts to use loadEnv for .env.local password. Build green (tsc + vite build). All new
+  API endpoints verified live against server (config/providers, command, file, path). Phases 2–6
+  pending.

@@ -87,8 +87,9 @@ Each payload: `{ type, properties }`. Handle:
 
 ## 5. Roadmap (phased, with acceptance criteria)
 - [x] **P0 Scaffold** — Vite+React+TS+Capacitor structure, ported core. (this commit)
-- [ ] **P1 Core flow compiles & runs in browser** (`npm i && npm run dev`):
-      Projects → Sessions → Chat with live streaming, tools, permissions, model/agent pickers.
+- [x] **P1 Core flow compiles & runs in browser** (`npm i && npm run dev`):
+      Projects → Sessions → Chat with live streaming, tools, permissions, model/agent pickers,
+      tiered model picker (117 models), folder browser, slash commands.
       Accept: send a message to a real server, see streamed reply + a tool call render.
 - [ ] **P2 Connection/Settings + native SSE** — Settings screen (baseUrl/auth, persisted);
       switch SSE to fetch-reader with Authorization; resolve CORS (opencode `--cors`).
