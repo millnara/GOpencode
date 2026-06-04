@@ -125,3 +125,5 @@ a{color:var(--accent2)} input,select,textarea{font:inherit}
 .q-submit{width:100%;margin-top:8px;background:var(--accent);color:#fff;border-radius:9px;padding:10px;font-weight:600;font-size:14px}
 .q-submit:disabled{background:var(--surface2);color:var(--faint)}
 .q-answered{font-size:12px;color:var(--ok);padding:4px 0}
+/* turn marker */
+.turn-marker{font-size:11px;color:var(--faint);padding:6px 4px;border-top:1px solid var(--border);margin-top:8px;text-align:center}

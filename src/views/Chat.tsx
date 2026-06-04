@@ -11,6 +11,13 @@ import { playDone } from "../lib/sound";
 import { notifyDone } from "../lib/notify";
 import { t } from "../lib/i18n";
 
+async function haptic(light = true) {
+  try {
+    const { Haptics, ImpactStyle } = await import("@capacitor/haptics");
+    await Haptics.impact({ style: light ? ImpactStyle.Light : ImpactStyle.Medium });
+  } catch { /* not native */ }
+}
+
 export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const msgs = useRef<Map<string, Group>>(new Map());
   const wasBusy = useRef(false);
@@ -32,6 +39,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [agent, setAgent] = useState("build");
   const [sheet, setSheet] = useState<null | "model" | "agent">(null);
   const [wedged, setWedged] = useState(false);
+  const [turnMeta, setTurnMeta] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -122,7 +130,21 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
       case "session.status":
         if (p.sessionID === sid) { const b = p.status?.type === "busy"; setBusy(b); if (b) { wasBusy.current = true; setWedged(false); } else if (wasBusy.current) { wasBusy.current = false; onDone(); } }
         break;
-      case "session.idle": if (p.sessionID === sid) { setBusy(false); if (wasBusy.current) { wasBusy.current = false; onDone(); } } break;
+      case "session.idle": if (p.sessionID === sid) {
+        setBusy(false);
+        const gs = [...msgs.current.values()].sort((a, b) => (a.info.time?.created || 0) - (b.info.time?.created || 0));
+        const lastA: any = gs.filter((g) => g.info.role === "assistant").pop();
+        if (lastA) {
+          const sf: any = lastA.parts.find((pp: any) => pp.type === "step-finish");
+          const toks = sf?.state?.metadata?.tokens || lastA.info?.tokens;
+          const cost = lastA.info?.cost;
+          let meta = "✓ done";
+          if (toks) meta += " · " + (typeof toks === "number" ? toks : (toks.input || 0) + "+" + (toks.output || 0)) + " tok";
+          if (cost) meta += " · $" + Number(cost).toFixed(4);
+          setTurnMeta(meta);
+        }
+        if (wasBusy.current) { wasBusy.current = false; onDone(); }
+      } break;
       case "session.error": if (p.sessionID === sid) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "⚠ " + (p.error?.name || "error") + ": " + (p.error?.data?.message || "") } as any); setBusy(false); schedule(); } break;
       case "permission.asked": if (p.sessionID === sid) setPerms((prev) => prev.find((x) => x.id === p.id) ? prev : [...prev, p]); break;
       case "permission.replied": setPerms((prev) => prev.filter((x) => x.id !== (p.id || p.permissionID))); break;
@@ -181,6 +203,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     const text = input.trim(); if (!text || busy || !model) return;
     setInput(""); if (taRef.current) taRef.current.style.height = "auto";
     setPending(text); setBusy(true); wasBusy.current = true;
+    haptic();
     try {
       let cmdName: string | null = null;
       let cmdArgs = "";
@@ -255,6 +278,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
               <button className="q-submit" style={{ marginTop: 0, padding: "6px 14px", fontSize: 13 }} onClick={resume}>⟳ Resume</button>
             </div>
           )}
+          {turnMeta && !busy && <div className="turn-marker">{turnMeta}</div>}
         </div>
       </div>
 

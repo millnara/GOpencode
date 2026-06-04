@@ -151,15 +151,15 @@ Goal: GOpencode does everything the prototype does, verified live.
 ---
 
 ## Phase 4 — Native polish ("their best bits")
-- [ ] **4.1** Completion **sound** (`src/lib/sound.ts` exists): play on `session.idle` when the
+- [x] **4.1** Completion **sound** (`src/lib/sound.ts` exists): play on `session.idle` when the
       turn was busy; gate on the Settings toggle.
-- [ ] **4.2** **Local notifications** (`src/lib/notify.ts` exists): on idle while backgrounded;
+- [x] **4.2** **Local notifications** (`src/lib/notify.ts` exists): on idle while backgrounded;
       request permission on first enable; tap → open the session.
-- [ ] **4.3** **i18n** (`src/lib/i18n.ts`): finish EN keys; add `it` and `zh-TW` dictionaries
+- [x] **4.3** **i18n** (`src/lib/i18n.ts`): finish EN keys; add `it` and `zh-TW` dictionaries
       (mirror giuliastro); language picker already in Settings.
-- [ ] **4.4** **Haptics** (@capacitor/haptics) on send + permission prompts.
+- [x] **4.4** **Haptics** (@capacitor/haptics) on send + permission prompts.
 - [ ] **4.5** Keep-awake during active streaming; status-bar theming.
-- [ ] **4.6 "Turn complete" marker** — on `session.idle`, render a subtle line
+- [x] **4.6 "Turn complete" marker** — on `session.idle`, render a subtle line
       "✓ done · {tokens} tok · ${cost}" from `StepFinishPart.tokens` / `AssistantMessage.cost`.
       (The wrap-up *prose* is the model's job — many turns are tool-only with no closing text; that's
       model behaviour, not an app bug. This just gives a clear end-of-turn signal + usage.)
