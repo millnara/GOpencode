@@ -30,6 +30,10 @@ type Gateway struct {
 	done      chan struct{}
 }
 
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
 func NewGateway(cfg Config) *Gateway {
 	room := make([]byte, 8)
 	rand.Read(room)
@@ -46,19 +50,83 @@ func NewGateway(cfg Config) *Gateway {
 	}
 }
 
-func (g *Gateway) PairingInfo() map[string]string {
-	return map[string]string{
-		"ws":   fmt.Sprintf("ws://localhost:%d", g.cfg.Port),
-		"room": g.room,
-		"pw":   g.pw,
+type Pairing struct {
+	Room      string   `json:"room"`
+	Pw        string   `json:"pw"`
+	Endpoints []string `json:"endpoints"`
+}
+
+func (g *Gateway) buildEndpoints(publicIP4, publicIP6 string) []string {
+	var endpoints []string
+	seen := make(map[string]bool)
+
+	for _, la := range getLocalIPs() {
+		if la.Type == "lan" {
+			ep := fmt.Sprintf("ws://%s:%d", la.IP, g.cfg.Port)
+			if !seen[ep] {
+				endpoints = append(endpoints, ep)
+				seen[ep] = true
+			}
+		}
+	}
+	if publicIP4 != "" && !isPrivateIPv4(publicIP4) {
+		ep := fmt.Sprintf("ws://%s:%d", publicIP4, g.cfg.Port)
+		if !seen[ep] {
+			endpoints = append(endpoints, ep)
+			seen[ep] = true
+		}
+	}
+	if publicIP6 != "" && !isPrivateIPv6(publicIP6) {
+		ep := fmt.Sprintf("ws://[%s]:%d", publicIP6, g.cfg.Port)
+		if !seen[ep] {
+			endpoints = append(endpoints, ep)
+			seen[ep] = true
+		}
+	}
+	for _, la := range getLocalIPs() {
+		if la.Type == "tunnel" {
+			ep := fmt.Sprintf("ws://%s:%d", la.IP, g.cfg.Port)
+			if !seen[ep] {
+				endpoints = append(endpoints, ep)
+				seen[ep] = true
+			}
+		}
+	}
+	return endpoints
+}
+
+func (g *Gateway) PairingInfo() Pairing {
+	ip4, ip6 := getExternalIPs()
+	return Pairing{
+		Room:      g.room,
+		Pw:        g.pw,
+		Endpoints: g.buildEndpoints(ip4, ip6),
+	}
+}
+
+func (g *Gateway) PushRelocate(publicIP4, publicIP6 string) {
+	g.mu.Lock()
+	conn := g.phone
+	g.mu.Unlock()
+	if conn == nil {
+		return
+	}
+	endpoints := g.buildEndpoints(publicIP4, publicIP6)
+	if len(endpoints) == 0 {
+		return
+	}
+	msg := map[string]interface{}{
+		"type":      "relocate",
+		"endpoints": endpoints,
+	}
+	if err := conn.WriteJSON(msg); err != nil {
+		log.Printf("relocate: write failed: %v", err)
+	} else {
+		log.Printf("relocate: pushed %d endpoints (ipv4=%s, ipv6=%s)", len(endpoints), publicIP4, publicIP6)
 	}
 }
 
 func (g *Gateway) Status() string { return g.status }
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -116,9 +184,7 @@ func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				id, _ := msg["id"].(float64)
 				conn.WriteJSON(map[string]interface{}{"id": id, "type": "authed"})
 
-				// Offer WebRTC upgrade for P2P
 				wr := NewWebRTCTransport(func(data []byte) {
-					// When phone sends over data channel, treat as JSON-RPC
 					conn.WriteMessage(websocket.TextMessage, data)
 				})
 				g.mu.Lock()
@@ -166,6 +232,11 @@ func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if wr != nil && cand != "" {
 				wr.AddICECandidate(cand)
 			}
+			continue
+		}
+
+		if msgType == "ping" {
+			conn.WriteJSON(map[string]interface{}{"type": "pong"})
 			continue
 		}
 
@@ -276,8 +347,7 @@ func (g *Gateway) streamSSE(conn *websocket.Conn, id float64, msg map[string]int
 					var event map[string]interface{}
 					if err := json.Unmarshal([]byte(data), &event); err == nil {
 						g.lastEvent = time.Now()
-	g.lastEvent = time.Now()
-	conn.WriteJSON(map[string]interface{}{
+						conn.WriteJSON(map[string]interface{}{
 							"id": id, "type": "sse-event", "event": event,
 						})
 					}
@@ -297,8 +367,27 @@ func (g *Gateway) Start() error {
 	g.status = "idle"
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", g.ServeHTTP)
+
+	// Detect UPnP / external IP
+	upnp := DetectUPnP(g.cfg.Port)
+	if upnp.available && upnp.externalIP != "" {
+		log.Printf("UPnP detected, external IP: %s", upnp.externalIP)
+		g.cfg.Host = upnp.externalIP
+	} else {
+		log.Printf("No external IP detected, using local IP: %s", getLocalIP())
+	}
+
+	// Bind to external interface if configured
+	bindAddr := "127.0.0.1"
+	if g.cfg.Host != "" && g.cfg.Host != "localhost" {
+		bindAddr = "0.0.0.0"
+		log.Printf("Gateway binding to %s:%d (external access)", bindAddr, g.cfg.Port)
+	} else {
+		log.Printf("Gateway binding to %s:%d (local only)", bindAddr, g.cfg.Port)
+	}
+
 	g.server = &http.Server{
-		Addr:         fmt.Sprintf("127.0.0.1:%d", g.cfg.Port),
+		Addr:         fmt.Sprintf("%s:%d", bindAddr, g.cfg.Port),
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 0,

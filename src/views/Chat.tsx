@@ -7,6 +7,7 @@ import ModelSheet from "../components/ModelSheet";
 import CommandMenu from "../components/CommandMenu";
 import QuestionPrompt from "../components/QuestionPrompt";
 import TodoPanel from "../components/TodoPanel";
+import Icon from "../components/Icon";
 import { getConn } from "../lib/settings";
 import { isConnected, isP2P } from "../lib/transport";
 import { playDone } from "../lib/sound";
@@ -327,14 +328,16 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   return (
     <div className="screen">
       <div className="chat-header">
-        <button className="back" onClick={() => history.length > 1 ? history.back() : (location.hash = "#/")}>‹</button>
+        <button className="back" onClick={() => history.length > 1 ? history.back() : (location.hash = "#/")} aria-label="Back">
+          <Icon name="back" size={22} strokeWidth={2} />
+        </button>
         <div className="info">
           <div className="name">{title || "Session"}</div>
           <div className="path">{dir.split(/[\\/]/).pop()}{isConnected() ? " · connected" : ""}</div>
         </div>
         <div className={"conn-dot " + (isP2P() ? "p2p" : isConnected() ? "ws" : "direct")} />
-        {busy && <button className="back" style={{ color: "var(--danger)" }} onClick={abort}>■</button>}
-        {!busy && <button className="back" onClick={() => setSheet("session")}>⋯</button>}
+        {busy && <button className="back stop" aria-label="Stop" onClick={abort}><Icon name="stop" size={18} strokeWidth={2} /></button>}
+        {!busy && <button className="back" aria-label="Session actions" onClick={() => setSheet("session")}><Icon name="more" size={20} strokeWidth={2} /></button>}
       </div>
 
       {offline && <div className="status-banner offline">Offline — reconnecting…</div>}
@@ -380,7 +383,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         {wedged && !busy && (
           <div className="status-banner wedged">
             <span>Session appears stuck</span>
-            <button onClick={resume}>⟳ Resume</button>
+            <button onClick={resume}><Icon name="refresh" size={14} strokeWidth={2.2} /> Resume</button>
           </div>
         )}
         {turnMeta && !busy && <div className="turn-marker">{turnMeta}</div>}
@@ -394,7 +397,10 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
             <button className="pill" onClick={() => {
               const keys = Object.keys(currentModelVariants);
               setVariant(keys[(keys.indexOf(variant || keys[0]) + 1) % keys.length]);
-            }}><b>⚡ {variant || Object.keys(currentModelVariants)[0]}</b></button>
+            }}>
+              <Icon name="bolt" size={13} strokeWidth={2.2} />
+              <b>{variant || Object.keys(currentModelVariants)[0]}</b>
+            </button>
           )}
         </div>
         <CommandMenu commands={commands} value={input} onPick={(name) => { setInput("/" + name + " "); taRef.current?.focus(); }} />
@@ -415,24 +421,32 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
             </div>
           </div>
         )}
-        <div style={{ fontSize: 11, color: "var(--fade)", padding: "2px 6px", alignSelf: "flex-start", cursor: "pointer" }}
-          onClick={() => setShowAdvanced(!showAdvanced)}>{showAdvanced ? "▴ hide" : "▾ advanced"}</div>
+        <div className="advanced-toggle" onClick={() => setShowAdvanced(!showAdvanced)}>
+          <Icon name={showAdvanced ? "chevronUp" : "chevronDown"} size={12} strokeWidth={2.2} />
+          <span>{showAdvanced ? "hide" : "advanced"}</span>
+        </div>
         {attachments.length > 0 && (
           <div className="att-preview">
             {attachments.map((a, i) => (
               <div key={i} className="att-thumb">
                 <img src={a.dataUrl} alt="" />
-                <button className="att-remove" onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}>✕</button>
+                <button className="att-remove" onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} aria-label="Remove">
+                  <Icon name="close" size={10} strokeWidth={2.5} />
+                </button>
               </div>
             ))}
           </div>
         )}
         <div className="box">
-          <button className="camera-btn" onClick={pickFile}>📷</button>
+          <button className="camera-btn" onClick={pickFile} aria-label="Attach image">
+            <Icon name="image" size={20} strokeWidth={1.8} />
+          </button>
           <textarea ref={taRef} rows={1} placeholder={t("chat.placeholder")} value={input}
             onChange={(e) => { setInput(e.target.value); const el = e.target; el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 140) + "px"; }}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} />
-          <button className={"send-btn" + (busy ? " stop" : "")} disabled={busy || (!input.trim() && !attachments.length)} onClick={send}>↑</button>
+          <button className={"send-btn" + (busy ? " stop" : "")} disabled={busy || (!input.trim() && !attachments.length)} onClick={send} aria-label={busy ? "Stop" : "Send"}>
+            {busy ? <Icon name="stop" size={15} strokeWidth={0} fill="currentColor" /> : <Icon name="send" size={18} strokeWidth={2.2} />}
+          </button>
         </div>
       </div>
 
@@ -446,7 +460,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
             <h3>Agent</h3>
             {(agents.length ? agents.map(a => a.name) : ["build", "plan"]).map(a => (
               <div key={a} className={"opt" + (agent === a ? " sel" : "")} onClick={() => { setAgent(a); setSheet(null); }}>
-                <span>{a}</span>{agent === a && <span>✓</span>}
+                <span className="opt-label">{a}</span>
+                {agent === a && <Icon name="check" size={18} strokeWidth={2.2} />}
               </div>
             ))}
           </div>
@@ -457,15 +472,30 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           <div className="sheet">
             <div className="handle" />
             <h3>Session</h3>
-            <div className="opt" onClick={() => { setSheet(null); forkSession(); }}><span>⑂ Fork this session</span></div>
-            <div className="opt" onClick={() => { setSheet(null); compactSession(); }}><span>⊞ Compact context</span></div>
-            <div className="opt" onClick={() => { setSheet(null); shareSession(); }}><span>↗ Share (copy link)</span></div>
+            <div className="opt" onClick={() => { setSheet(null); forkSession(); }}>
+              <span className="opt-icon"><Icon name="fork" size={18} strokeWidth={1.8} /></span>
+              <span className="opt-label">Fork this session</span>
+            </div>
+            <div className="opt" onClick={() => { setSheet(null); compactSession(); }}>
+              <span className="opt-icon"><Icon name="compact" size={18} strokeWidth={1.8} /></span>
+              <span className="opt-label">Compact context</span>
+            </div>
+            <div className="opt" onClick={() => { setSheet(null); shareSession(); }}>
+              <span className="opt-icon"><Icon name="share" size={18} strokeWidth={1.8} /></span>
+              <span className="opt-label">Share (copy link)</span>
+            </div>
             <div className="opt" onClick={async () => {
               setSheet(null);
               const cmd = prompt("Shell command:");
               if (cmd) { setBusy(true); wasBusy.current = true; try { await api.shell(dir, sid, cmd); } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Shell failed: " + (e.message || e) } as any); setBusy(false); force(); } }
-            }}><span>⌘ Run shell command</span></div>
-            <div className="opt" style={{ color: "var(--danger)" }} onClick={() => { setSheet(null); if (confirm("Delete?")) { api.deleteSession(dir, sid).then(() => history.back()); } }}><span>✕ Delete session</span></div>
+            }}>
+              <span className="opt-icon"><Icon name="shell" size={18} strokeWidth={1.8} /></span>
+              <span className="opt-label">Run shell command</span>
+            </div>
+            <div className="opt danger" onClick={() => { setSheet(null); if (confirm("Delete this session?")) { api.deleteSession(dir, sid).then(() => history.back()); } }}>
+              <span className="opt-icon"><Icon name="delete" size={18} strokeWidth={1.8} /></span>
+              <span className="opt-label">Delete session</span>
+            </div>
           </div>
         </div>
       )}

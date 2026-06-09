@@ -10,8 +10,8 @@ import { loadConn } from "./lib/settings";
 async function initNative() {
   if (!Capacitor.isNativePlatform()) return;
   try {
-    await StatusBar.setStyle({ style: Style.Dark });
-    await StatusBar.setBackgroundColor({ color: "#0d0d0f" });
+    await StatusBar.setStyle({ style: Style.Light });
+    await StatusBar.setBackgroundColor({ color: "#f4f5f8" });
   } catch { /* ignore */ }
   try {
     App.addListener("backButton", () => {

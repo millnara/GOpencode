@@ -7,9 +7,11 @@ import BrowseFolder from "./views/BrowseFolder";
 import Pairing from "./views/Pairing";
 import BottomNav from "./components/BottomNav";
 import LockScreen from "./components/LockScreen";
+import Logo from "./components/Logo";
+import Icon from "./components/Icon";
 import { b64uDec } from "./lib/util";
 import { saveLastRoute, loadLastRoute, isConfigured, loadPairing, hasPin } from "./lib/settings";
-import { connect } from "./lib/transport";
+import { connect, onStateChange, getState, reconnectNow, type TransportState } from "./lib/transport";
 
 type Route =
   | { name: "projects" }
@@ -40,34 +42,42 @@ function parse(): Route {
   return { name: "projects" };
 }
 
+function isTunnelHost(h: string): boolean {
+  if (h.startsWith("[") && h.endsWith("]")) return false;
+  const parts = h.split(".");
+  if (parts.length !== 4) return false;
+  const a = parseInt(parts[0], 10);
+  const b = parseInt(parts[1], 10);
+  return a === 100 && b >= 64 && b <= 127;
+}
+
+function tunnelName(urls: string[]): string {
+  for (const u of urls) {
+    const m = u.match(/^ws:\/\/([^\/:]+)/);
+    if (m && isTunnelHost(m[1])) return "Tailscale";
+  }
+  return "a tunnel";
+}
+
 export default function App() {
   const [route, setRoute] = useState<Route>(parse());
   const [ready, setReady] = useState(false);
   const [locked, setLocked] = useState(false);
   const [pinEnabled, setPinEnabled] = useState(false);
+  const [paired, setPaired] = useState(false);
+  const [transport, setTransport] = useState<TransportState>(getState());
+  const [pairingUrls, setPairingUrls] = useState<string[]>([]);
 
   useEffect(() => {
     hasPin().then(h => setPinEnabled(h));
   }, []);
 
   useEffect(() => {
-    (async () => {
-      const pairing = await loadPairing();
-      if (pairing) {
-        try { await connect(pairing.url, pairing.room, pairing.pw); } catch { /* */ }
-      }
-      setReady(true);
-      if (pinEnabled) setLocked(true);
+    const off = onStateChange((s) => setTransport(s));
+    return () => { off(); };
+  }, []);
 
-      if (!location.hash || location.hash === "#/" || location.hash === "#") {
-        loadLastRoute().then((last) => {
-          if (last && last !== "#/" && last !== "#" && (isConfigured() || pairing)) {
-            location.hash = last;
-          }
-        });
-      }
-    })();
-
+  useEffect(() => {
     const h = () => {
       const r = parse();
       setRoute(r);
@@ -79,19 +89,43 @@ export default function App() {
     addEventListener("hashchange", h);
 
     const onVis = () => {
-      if (document.visibilityState === "hidden" && pinEnabled) {
+      if (document.visibilityState === "hidden" && pinEnabled && paired) {
         setLocked(true);
       }
     };
     document.addEventListener("visibilitychange", onVis);
 
+    (async () => {
+      const pairing = await loadPairing();
+      if (pairing && pairing.urls.length > 0) {
+        setPaired(true);
+        setPairingUrls(pairing.urls);
+        try { await connect(pairing.urls, pairing.room, pairing.pw); } catch { /* */ }
+      }
+      setReady(true);
+      if (pinEnabled && (pairing || isConfigured())) setLocked(true);
+
+      if (!location.hash || location.hash === "#/" || location.hash === "#") {
+        loadLastRoute().then((last) => {
+          if (last && last !== "#/" && last !== "#" && (isConfigured() || pairing)) {
+            location.hash = last;
+          }
+        });
+      }
+    })();
+
     return () => {
       removeEventListener("hashchange", h);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [pinEnabled]);
+  }, []);
 
-  if (!ready) return <div className="screen"><div className="spinner" /></div>;
+  if (!ready) return (
+    <div className="screen" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, background: "var(--bg)" }}>
+      <Logo size={48} showText={false} />
+      <div className="spinner" style={{ margin: 0 }} />
+    </div>
+  );
 
   let view: JSX.Element;
   switch (route.name) {
@@ -99,14 +133,38 @@ export default function App() {
     case "chat": view = <Chat dir={route.dir} sid={route.sid} />; break;
     case "settings": view = <Settings />; break;
     case "browse": view = <BrowseFolder startDir={route.dir} />; break;
-    case "pairing": view = <Pairing onDone={() => (location.hash = "#/")} />; break;
+    case "pairing": view = <Pairing onDone={() => { setPaired(true); location.hash = "#/"; }} />; break;
     default: view = <Projects />;
   }
   const showNav = route.name === "projects" || route.name === "settings";
+
+  const stranded = transport === "stranded" && pairingUrls.length > 0;
+
   return (
     <>
-      <div className={showNav ? "with-nav" : ""}>{view}</div>
-      {showNav && <BottomNav active={route.name} />}
+      {stranded && (
+        <div className="topbanner stranded">
+          <div className="topbanner-ic"><Icon name="warning" size={18} strokeWidth={2} /></div>
+          <div className="topbanner-tx">
+            Can't reach your desktop. If you use {tunnelName(pairingUrls)} on this phone, please enable it to continue.
+          </div>
+          <button className="topbanner-btn" onClick={() => reconnectNow()}>Retry</button>
+        </div>
+      )}
+      {transport === "reconnecting" && pairingUrls.length > 0 && !stranded && (
+        <div className="topbanner">
+          <div className="topbanner-ic"><Icon name="refresh" size={16} strokeWidth={2.2} /></div>
+          <div className="topbanner-tx">Reconnecting to your desktop…</div>
+        </div>
+      )}
+      {showNav ? (
+        <div className="screen with-nav">
+          {view}
+          <BottomNav active={route.name} />
+        </div>
+      ) : (
+        <div className="screen">{view}</div>
+      )}
       {locked && <LockScreen onUnlock={() => setLocked(false)} />}
     </>
   );

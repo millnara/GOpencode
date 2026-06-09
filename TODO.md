@@ -303,3 +303,147 @@ third party is a tiny signaling server used for connection setup — it never se
   5.11 File viewer — tap file in BrowseFolder, opens sheet with syntax-highlighted content
   Go desktop exe rebuilt. APK rebuilt (7.9MB, includes camera plugin). NSIS installer at 4.2MB.
   Only truly remaining: 6.3 CI pipeline (GitHub Actions).
+- 2026-06-05 (visual polish): Fixed 3 long-standing UX issues raised by Gary.
+  **(1) Bottom nav was unreachable** — root cause: `Projects.tsx` was force-redirecting
+  to `#/settings` in its mount effect when `!isConfigured()`, so tapping Projects
+  instantly bounced back to Settings. Fixed: Projects now shows a friendly empty
+  state with an "Open Settings" CTA instead of redirecting. Side fixes: BottomNav
+  is now a sticky in-flow nav (was fixed-positioned behind the system gesture bar);
+  App.tsx main effect deps changed from `[pinEnabled, paired]` to `[]` to stop the
+  last-route-restoration from clobbering user navigation; hash listener now anchored
+  to mount only; --sab bumped to 56px so the nav sits cleanly above the gesture bar.
+  **(2) Settings page redesigned** — card layout (CONNECTION panel), iOS-style
+  `.switch` toggles (white knob over orange), status dot for connection test, side-
+  by-side Test + Save. **(3) i18n stripped** — single English dictionary (no more
+  it/zh-TW), language picker removed. **(4) QR scanner** — Pairing now has a real
+  ⎘ Scan QR from desktop button using hidden `<input type="file" capture="environment">`
+  + jsQR to decode the desktop gateway's `{"ws","room","pw"}` JSON and auto-fill
+  the form. **(5) Inter font + brighter theme** — Google Fonts (Inter + JetBrains
+  Mono) loaded via `<link>`, `--font` updated, theme lifted (`hsl(225 12% 9%)` bg
+  instead of `hsl(240 7% 4.5%)`), accent shifted to a slightly warmer
+  orange (`--ah: 18` instead of `14`), ambient radial backdrop strengthened.
+  **(6) iOS switches, spring physics, code-block copy, polished sheets** all ported
+  from the extracted design plans. APK 8.2MB. Still 6.3 CI.
+- 2026-06-05 (light theme rewrite + icon refresh): User pushed back hard on the
+  dark/orange theme — wanted "bright, modern, light". Full rewrite of `src/styles.css`
+  (light bg hsl(225 25% 97.5%), white surfaces, dark text, indigo accent hsl(230 90% 58%),
+  light frosted glass for headers/composer/nav). Inter font bundled locally as woff2
+  in `public/fonts/` (4 weights + JetBrains Mono) because the Google Fonts CDN
+  fonts weren't applying in the WebView. Status bar switched to Style.Dark with
+  bg #f4f5f8. Green Save button removed (now blue). Bottom nav slimmed: --sab 56→18px,
+  --nav-h 64→54px, home indicator pill in ::after, padding-bottom on content. Created
+  `src/components/Icon.tsx` (30+ SVG line icons, currentColor stroke) and
+  `src/components/Logo.tsx` (LogoMark G path + Logo with GOpencode wordmark,
+  gradient indigo stroke). Replaced emoji across the app: BottomNav, Projects,
+  BrowseFolder, Chat (back/stop/more, camera→image, send→arrow, attachment close,
+  variant bolt, session sheet items, agent sheet check, wedged resume), Settings
+   (info banner, scan QR, saved check), Pairing (back, scan QR, connected check).
+   App.tsx loading screen + Projects empty state now show the Logo. Android adaptive
+   icon foreground (`drawable-v24/ic_launcher_foreground.xml`) rewritten with the
+   new G mark in indigo (#4F6CFF) on a light gradient bg.   APK 8.2MB. Build green
+   (tsc + vite + gradle assembleDebug --offline). Installed on device. Visual
+   verification done — `light_1_projects.png`, `light_2_settings.png`,
+   `light_3_pairing.png`, `light_4_projects_again.png` show the new theme + SVG
+   icons rendering correctly on-device (light bg, white surfaces, dark text,
+   indigo accent, SVG line icons in nav, banners, and buttons, iOS-style
+   switches, blue Save, no green). 6.3 CI already in place from commit 24b773a
+   (`.github/workflows/build.yml` — android + desktop + release-on-tag jobs);
+   prior status log entry was outdated on that point. All TODO items complete.
+- 2026-06-06 (desktop Go app: native windows, no terminal, no browser):
+  **Goal:** make the desktop gateway a proper Windows GUI app — no console window, no
+  browser tabs for QR/settings, real setup-wizard installer. Rewrote `desktop/web.go` →
+  `desktop/windows.go` using the windigo UI library (native Win32 controls wrapped in
+  idiomatic Go). `showPairingWindow` builds a 400x600 topmost window with the QR bitmap
+  (via `win.HINSTANCE(0).LoadImage` + `WM_SETIMAGE`), pairing JSON below, and an
+  access-info label (Local IP / External IP if UPnP detected / "forward port 8765"
+  instruction if not). `showSettingsWindow` builds a 420x400 form (port, host, opencode
+  URL, username, password) with Save (validates port range, persists via `saveConfig`,
+  calls `onRestart` to rebind the gateway) and Cancel. Removed `startWebServer` and the
+  "Open opencode web UI" tray item — the tray no longer shells out to a browser.
+  `runtime.LockOSThread()` moved into each goroutine that calls `RunAsMain` (was in
+  `init()`, which was wrong). Build flag is `-ldflags="-s -w -H windowsgui"` so the final
+  exe is a proper Windows GUI subsystem — no terminal window flashes open. UPnP detection:
+  `getExternalIP()` hits api.ipify.org / icanhazip.com / ifconfig.me; if a public IP comes
+  back, we set `cfg.Host` and bind to `0.0.0.0:8765` (LAN + WAN). TURN server
+  `turn:openrelay.metered.ca:80` added to BOTH the desktop `webrtc.go` ICE config and the
+  phone `src/lib/transport.ts` ICE config — STUN alone fails on symmetric NAT (cellular).
+  Camera + storage permissions added to `AndroidManifest.xml` for the in-app QR scanner.
+  **Installer:** abandoned NSIS, switched to Inno Setup 7. `installer.iss` has a proper
+  wizard: Welcome → Install Dir → Network Setup page (asks for external IP, blank =
+  auto-detect) → Gateway Port page (validates 1024-65535) → Installing → Finished with
+  "Launch GOpencode" checkbox. The `[Code]` section writes the chosen port + host to
+  `%APPDATA%\GOpencode\config.json` in `CurStepChanged(ssPostInstall)` — same file the
+  app reads, no registry detour. `PrivilegesRequired=lowest` (was `admin`) since the
+  app is per-user. Output: `desktop/Output/GOpencode-Setup-0.3.0.exe`.   Verified: clean
+  compile, binary 13.1MB launches as a pure GUI process (no console), UPnP detects
+  83.217.162.6, gateway binds and serves `/pairing` + `/status` correctly. **User still
+  needs to visually verify the QR + settings windows render correctly when tray menu
+  is clicked.**
+- 2026-06-06 (ISP-rotation resilience: multi-endpoint QR + relocate push):
+  Goal: make the desktop→phone connection survive an ISP public-IP rotation. Hard cutover
+  to a new multi-endpoint QR format and a `relocate` push so the phone doesn't get stranded
+  when the router grabs a new public IP mid-day.
+  **Desktop (`desktop/`):**
+  - `upnp.go`: added `getLocalIPs()` returning all interface addresses categorized as
+    `lan` (RFC1918) / `tunnel` (100.64/10 — Tailscale, ZeroTier, etc.) / `ipv6` (non-
+    link-local). APIPA (169.254/16) is filtered out. Kept `getLocalIP()` (first-match)
+    for the installer detection. New `isTunnelIP()` helper.
+  - `gateway.go`: new `Pairing` struct (`{room, pw, endpoints[]}`) with JSON tags;
+    `PairingInfo()` and new `PushRelocate(publicIP4, publicIP6)` both go through a
+    shared `buildEndpoints(publicIP4, publicIP6)` helper. Order in the list: LAN →
+    public IPv4 → public IPv6 → tunnel. `PushRelocate` writes `{type:"relocate",
+    endpoints:[...]}` to the currently-paired phone's WebSocket; LAN + tunnel are
+    re-detected at push time, public IPs come from IPMonitor. New `ping` → `pong`
+    handler in `handleWebSocket` for the phone's 10s keepalive.
+  - `ipmonitor.go`: interval now driven by `cfg.IPRecheckSeconds` (default 60s,
+    min 10s); callback signature changed to `func(newIP4, newIP6 string)`.
+    `onChange` fires every check (not just on change) so desktop can re-push the
+    full new endpoint list; if the IP didn't change, the push still refreshes the
+    phone's view of the current endpoints.
+  - `main.go`: removed the "restart gateway on IP change" branch (the gateway
+    already binds 0.0.0.0 and never needs to restart for a public IP swap);
+    `ipMon.onChange` now calls `gw.PushRelocate(newIP4, newIP6)` directly.
+  - `windows.go`: full rewrite. Dropped `co.WS_EX_TOPMOST` on both windows so
+    they can go behind other apps. Pairing window is 480x640, resizable
+    (`WS_SIZEBOX|WS_MAXIMIZEBOX`), shows the QR + a read-only list of all detected
+    endpoints + a Tailscale-detected note (if a 100.64/10 address is present).
+    QR content is now `json.Marshal(Pairing)` — the phone parses it. Settings
+    window is 640x560, resizable, full app page: port, ocUrl, username, password,
+    read-only "Network (auto-detected)" multiline edit (LAN/Tunnel/IPv6/Public
+    IPv4/Public IPv6 labels), AutoRecheck checkbox, IP-recheck interval ComboBox
+    (1/5/15/30/60 min), Re-check now button (runs `ipMon.CheckNow()` in a goroutine
+    then `wnd.UiThread` shows the result message). Removed the manual "External
+    Host / IP" field entirely — host is now auto-detected only.
+  - `tray.go`: `onReady` signature gained `ipMon *IPMonitor`; passed through to
+    `showSettingsWindow` for the Re-check now button.
+  - `config.go`: `IPRecheckSeconds` added (default 60, json: `ipRecheckSeconds`).
+  **Phone (`src/`):**
+  - `lib/settings.ts`: new `ReconnectMode = "off"|"normal"|"aggressive"`; `Conn`
+    gains `reconnectMode` (default "normal"). `Pairing` interface changed from
+    `{url, room, pw}` to `{urls: string[], room, pw}`. `loadPairing()` migrates
+    old single-`url` records transparently.
+  - `lib/transport.ts`: full rewrite. New state machine (`disconnected` /
+    `connecting` / `connected` / `reconnecting` / `stranded`) exposed via
+    `onStateChange(fn)` listeners. `connect(urls, room, pw)` accepts a list
+    and tries them in order with 3.5s per-URL timeout (rotation starts at
+    `lastSuccessfulIdx` for sticky-try-the-winner). 10s WebSocket keepalive
+    via `ping`/`pong` (8s timeout to declare dead). `relocate` message
+    updates `currentUrls` (merges new public endpoints with existing tunnel
+    URLs) and triggers an immediate (0ms) reconnect. Auto-reconnect is mode-
+    aware: `off` = manual only, `normal` = 1m → 5m → 15m (capped, 5 attempts
+    → `stranded`), `aggressive` = 30s → 1m → 2m (capped, 5 attempts →
+    `stranded`). `reconnectNow()` for the banner button. `isTunnelUrl()`
+    helper recognises 100.64/10 hosts (Tailscale).
+  - `views/Pairing.tsx`: parses the new JSON QR `{endpoints, room, pw}`. Shows
+    the primary URL field + a "Backup endpoints (N)" list when more than one
+    URL was scanned. Saves the full `urls` array on connect.
+  - `views/Settings.tsx`: new "Auto-reconnect" radio group (Off / Normal
+    / Aggressive) with battery-and-data impact description under each option.
+  - `App.tsx`: subscribes to transport state; renders a danger `.topbanner`
+    when stranded that names the tunnel (auto: "Tailscale" if any stored URL
+    is 100.64/10, "a tunnel" otherwise) and offers a Retry button; renders a
+    warn banner while reconnecting.
+  - `styles.css`: new `.topbanner` and `.topbanner.stranded` styles.
+  **Build status:** all Go and TypeScript edits written, NOT yet built (user
+  asked not to run any builds while they have other things running). Awaiting
+  user's go-ahead for `go build` + `npm run build` + `gradlew assembleDebug`.

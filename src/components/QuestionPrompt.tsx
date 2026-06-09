@@ -89,10 +89,10 @@ export default function QuestionPrompt({
   if (answered) return null;
 
   return (
-    <div className="perm" style={{ borderColor: "var(--accent)" }}>
-      <div className="h" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div className="q-card">
+      <div className="h">
         <span>Question</span>
-        <button style={{ fontSize: 12, color: "var(--muted)" }} onClick={() => { setAnswered(true); onReject(); }}>Skip</button>
+        <button onClick={() => { setAnswered(true); onReject(); }}>Skip</button>
       </div>
       {req.questions.map((q, i) => (
         <SingleQuestion key={i} q={q} onAnswer={(labels) => handleAnswer(i, labels)} />

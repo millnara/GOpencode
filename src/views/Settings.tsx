@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { getConn, saveConn, type Conn } from "../lib/settings";
 import { ensureNotifyPermission } from "../lib/notify";
-import { t, locales } from "../lib/i18n";
+import { t } from "../lib/i18n";
 import { isConnected } from "../lib/transport";
+import Logo from "../components/Logo";
+import Icon from "../components/Icon";
 
 function normalizeUrl(u: string): string {
   let s = u.trim();
@@ -10,6 +12,17 @@ function normalizeUrl(u: string): string {
   if (s === "/api") return s;
   if (!/^https?:\/\//i.test(s)) s = "http://" + s;
   return s.replace(/\/+$/, "");
+}
+
+function Switch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      className={"switch" + (on ? " on" : "")}
+      onClick={() => onChange(!on)}
+      aria-pressed={on}
+    />
+  );
 }
 
 export default function Settings() {
@@ -45,55 +58,115 @@ export default function Settings() {
   };
 
   const firstRun = !getConn().baseUrl || (!c.baseUrl.startsWith("/api") && !c.password);
+  const connected = isConnected();
 
   return (
     <div className="screen">
       <div className="topbar"><div className="title">{t("settings.title")}</div></div>
-      <div className="content">
-        {firstRun && <div className="errbox" style={{ margin: "16px", borderColor: "var(--accent)", color: "var(--accent2)", background: "var(--accent-bg)" }}>Welcome! Pair with your desktop gateway or enter server details below.</div>}
+      <div className="content scroll">
+        {firstRun && (
+          <div className="settings-banner">
+            <span className="settings-banner-ic"><Icon name="qr" size={18} strokeWidth={1.7} /></span>
+            <div className="settings-banner-tx">
+              Scan the QR from your desktop gateway, or enter server details below.
+            </div>
+          </div>
+        )}
 
         <div className="settings-section">
-          <button className="btn" style={{ background: isConnected() ? "var(--ok)" : "var(--accent)" }}
-            onClick={() => (location.hash = "#/pairing")}>
-            {isConnected() ? "✓ Paired via gateway" : "⚡ Pair with gateway"}
+          <button
+            className={"btn" + (connected ? " ok" : "")}
+            onClick={() => (location.hash = "#/pairing")}
+          >
+            {connected ? (
+              <><Icon name="check" size={18} strokeWidth={2.4} /> Paired via gateway</>
+            ) : (
+              <><Icon name="qr" size={18} strokeWidth={1.8} /> Scan QR to pair</>
+            )}
           </button>
         </div>
 
-        <div className="settings-section">
-          <div className="label">Server URL</div>
+        <div className="settings-section" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: "4px 16px", marginTop: 8 }}>
+          <div className="label" style={{ margin: "14px 0 10px" }}>Connection</div>
+          <div className="label" style={{ margin: "0 0 6px", fontSize: 11, fontWeight: 500, color: "var(--fade)", textTransform: "none", letterSpacing: 0 }}>Server URL</div>
           <input type="text" placeholder="http://your-pc:4096" value={c.baseUrl} onChange={e => set("baseUrl", e.target.value)} autoCapitalize="off" />
-          <div className="label">Username</div>
+          <div className="label" style={{ margin: "0 0 6px", fontSize: 11, fontWeight: 500, color: "var(--fade)", textTransform: "none", letterSpacing: 0 }}>Username</div>
           <input type="text" value={c.username} onChange={e => set("username", e.target.value)} autoCapitalize="off" />
-          <div className="label">Password</div>
+          <div className="label" style={{ margin: "0 0 6px", fontSize: 11, fontWeight: 500, color: "var(--fade)", textTransform: "none", letterSpacing: 0 }}>Password</div>
           <input type="password" value={c.password} onChange={e => set("password", e.target.value)} />
-          <button className={"btn secondary" + (testing === "testing" ? " testing" : "")}
-            onClick={testConn} disabled={testing === "testing"}>
-            {testing === "testing" ? "Testing…" : testing === "ok" ? "✓ Connected" : testing === "err" ? "✗ Retry" : "Test connection"}
-          </button>
-          {testMsg && <div style={{ fontSize: 12, padding: "4px 0", color: testing === "ok" ? "var(--ok)" : "var(--danger)" }}>{testMsg}</div>}
+
+          <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 0 4px", fontSize: 13 }}>
+            <span className="dot" style={{ width: 8, height: 8, background: testing === "ok" ? "var(--ok)" : testing === "err" ? "var(--danger)" : testing === "testing" ? "var(--warn)" : "var(--fade)" }} />
+            {testing === "testing" && <span style={{ color: "var(--muted)" }}>Testing…</span>}
+            {testing === "ok" && <span style={{ color: "var(--ok)" }}>{testMsg}</span>}
+            {testing === "err" && <span style={{ color: "var(--danger)" }}>{testMsg}</span>}
+            {testing === "idle" && <span style={{ color: "var(--fade)" }}>Not tested</span>}
+          </div>
+
+          <div style={{ display: "flex", gap: 10, padding: "8px 0 14px" }}>
+            <button className={"btn secondary" + (testing === "testing" ? " testing" : "")} style={{ flex: 1 }} onClick={testConn} disabled={testing === "testing"}>
+              {testing === "testing" ? "Testing…" : "Test"}
+            </button>
+            <button className="btn" style={{ flex: 1 }} onClick={save}>
+              {saved ? <><Icon name="check" size={17} strokeWidth={2.4} /> Saved</> : t("settings.save")}
+            </button>
+          </div>
         </div>
 
-        <div className="settings-section">
+        <div className="settings-section" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: "0 16px", marginTop: 8 }}>
           <div className="settings-toggle">
-            <span>Sound on completion</span>
-            <input type="checkbox" checked={c.soundOnDone} onChange={e => set("soundOnDone", e.target.checked)} />
+            <div>
+              <div style={{ fontSize: 14.5, fontWeight: 520 }}>Sound on completion</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>Chime when a turn finishes</div>
+            </div>
+            <Switch on={c.soundOnDone} onChange={v => set("soundOnDone", v)} />
           </div>
           <div className="settings-toggle">
-            <span>Notify on completion</span>
-            <input type="checkbox" checked={c.notifyOnDone} onChange={e => set("notifyOnDone", e.target.checked)} />
+            <div>
+              <div style={{ fontSize: 14.5, fontWeight: 520 }}>Notify on completion</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>Push notification when done</div>
+            </div>
+            <Switch on={c.notifyOnDone} onChange={v => set("notifyOnDone", v)} />
           </div>
         </div>
 
-        <div className="settings-section">
-          <div className="label">Language</div>
-          <select value={c.locale} onChange={e => set("locale", e.target.value)}>
-            {locales.map(l => <option key={l} value={l}>{l}</option>)}
-          </select>
+        <div className="settings-section" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: "14px 16px 4px", marginTop: 8 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 520, marginBottom: 4 }}>Auto-reconnect</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12, lineHeight: 1.45 }}>
+            How aggressively to retry if the connection drops (e.g. your ISP changed the public IP). Higher modes use more battery and mobile data when the desktop is unreachable.
+          </div>
+          {([
+            ["off", "Off", "Manual reconnect only. Lowest battery use."],
+            ["normal", "Normal (recommended)", "1 min, 5 min, 15 min, 15 min. Balanced for static IP users."],
+            ["aggressive", "Aggressive", "30s, 1 min, 2 min, 2 min. Fastest recovery, more battery and data."],
+          ] as const).map(([key, label, desc]) => (
+            <label
+              key={key}
+              style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", cursor: "pointer" }}
+            >
+              <input
+                type="radio"
+                name="reconnectMode"
+                value={key}
+                checked={c.reconnectMode === key}
+                onChange={() => set("reconnectMode", key)}
+                style={{ marginTop: 3, accentColor: "var(--accent)" }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 520, color: "var(--text)" }}>{label}</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 1, lineHeight: 1.4 }}>{desc}</div>
+              </div>
+            </label>
+          ))}
         </div>
 
-        <div className="settings-section">
-          <button className="btn" onClick={save}>{saved ? "✓ Saved" : t("settings.save")}</button>
-          <div className="hint">Use the gateway (recommended) or enter server details directly. Password stored locally.</div>
+        <div className="settings-section" style={{ paddingBottom: 4 }}>
+          <div className="hint">Password is stored locally. The gateway (recommended) proxies traffic from your phone to opencode.</div>
+        </div>
+
+        <div className="settings-footer">
+          <Logo size={22} showText={true} textColor="var(--fade)" />
+          <div className="settings-footer-v">v0.3.0</div>
         </div>
       </div>
     </div>

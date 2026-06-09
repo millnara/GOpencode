@@ -8,19 +8,27 @@ import (
 )
 
 type Config struct {
-	Port      int    `json:"port"`
-	OcURL     string `json:"ocUrl"`
-	Username  string `json:"username"`
-	Password  string `json:"password"`
-	AutoStart bool   `json:"autoStart"`
+	Port             int    `json:"port"`
+	OcURL            string `json:"ocUrl"`
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	AutoStart        bool   `json:"autoStart"`
+	Host             string `json:"host"`             // External hostname/IP for remote access
+	Headless         bool   `json:"headless"`         // Run headless without system tray
+	AutoRecheck      bool   `json:"autoRecheck"`      // Re-detect public IP periodically
+	IPRecheckSeconds int    `json:"ipRecheckSeconds"` // How often to re-detect (seconds)
 }
 
 var defaultConfig = Config{
-	Port:     8765,
-	OcURL:    "http://127.0.0.1:4096",
-	Username: "opencode",
-	Password: "",
-	AutoStart: false,
+	Port:             8765,
+	OcURL:            "http://127.0.0.1:4096",
+	Username:         "opencode",
+	Password:         "",
+	AutoStart:        false,
+	Host:             "",
+	Headless:         false,
+	AutoRecheck:      true,
+	IPRecheckSeconds: 60,
 }
 
 func configPath() string {

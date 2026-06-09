@@ -8,6 +8,9 @@ import (
 )
 
 const stunServer = "stun:stun.l.google.com:19302"
+const turnServer = "turn:openrelay.metered.ca:80"
+const turnUsername = "openrelayproject"
+const turnCredential = "openrelayproject"
 
 type WebRTCTransport struct {
 	pc *webrtc.PeerConnection
@@ -28,7 +31,10 @@ func (w *WebRTCTransport) CreateOffer(sendOffer func(sdp string) error, sendIce 
 	w.sendICECandidate = sendIce
 
 	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{{URLs: []string{stunServer}}},
+		ICEServers: []webrtc.ICEServer{
+			{URLs: []string{stunServer}},
+			{URLs: []string{turnServer}, Username: turnUsername, Credential: turnCredential},
+		},
 	}
 
 	pc, err := webrtc.NewPeerConnection(config)

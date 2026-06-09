@@ -1,5 +1,7 @@
 import { Preferences } from "@capacitor/preferences";
 
+export type ReconnectMode = "off" | "normal" | "aggressive";
+
 export interface Conn {
   baseUrl: string;
   username: string;
@@ -7,6 +9,7 @@ export interface Conn {
   soundOnDone: boolean;
   notifyOnDone: boolean;
   locale: string;
+  reconnectMode: ReconnectMode;
 }
 
 const KEY = "gopencode.conn";
@@ -17,6 +20,7 @@ const DEFAULTS: Conn = {
   soundOnDone: true,
   notifyOnDone: true,
   locale: "en",
+  reconnectMode: "normal",
 };
 
 let cache: Conn = { ...DEFAULTS };
@@ -24,7 +28,10 @@ let cache: Conn = { ...DEFAULTS };
 export async function loadConn(): Promise<Conn> {
   try {
     const { value } = await Preferences.get({ key: KEY });
-    if (value) cache = { ...DEFAULTS, ...JSON.parse(value) };
+    if (value) {
+      const parsed = JSON.parse(value);
+      cache = { ...DEFAULTS, ...parsed };
+    }
   } catch { /* ignore */ }
   return cache;
 }
@@ -47,14 +54,21 @@ export async function loadLastRoute(): Promise<string | null> {
   try { const { value } = await Preferences.get({ key: LAST_KEY }); return value || null; } catch { return null; }
 }
 
-export interface Pairing { url: string; room: string; pw: string; }
+export interface Pairing { urls: string[]; room: string; pw: string; }
 const PAIRING_KEY = "gopencode.pairing";
 
 export async function savePairing(p: Pairing): Promise<void> {
   try { await Preferences.set({ key: PAIRING_KEY, value: JSON.stringify(p) }); } catch { /* ignore */ }
 }
 export async function loadPairing(): Promise<Pairing | null> {
-  try { const { value } = await Preferences.get({ key: PAIRING_KEY }); return value ? JSON.parse(value) : null; } catch { return null; }
+  try {
+    const { value } = await Preferences.get({ key: PAIRING_KEY });
+    if (!value) return null;
+    const p = JSON.parse(value);
+    if (Array.isArray(p.urls)) return p;
+    if (typeof p.url === "string") return { urls: [p.url], room: p.room, pw: p.pw };
+    return null;
+  } catch { return null; }
 }
 export async function clearPairing(): Promise<void> {
   try { await Preferences.remove({ key: PAIRING_KEY }); } catch { /* ignore */ }

@@ -4,16 +4,19 @@ import type { Project } from "../lib/types";
 import { b64uEnc, leaf, timeAgo, hashColor } from "../lib/util";
 import { isConfigured } from "../lib/settings";
 import { t } from "../lib/i18n";
+import Icon from "../components/Icon";
+import Logo from "../components/Logo";
 
 export default function Projects() {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [q, setQ] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const needsSetup = !isConfigured();
 
   useEffect(() => {
-    if (!isConfigured()) { location.hash = "#/settings"; return; }
+    if (needsSetup) { setProjects([]); return; }
     api.projects().then(setProjects).catch(e => setErr(String(e.message || e)));
-  }, []);
+  }, [needsSetup]);
 
   const filtered = (projects || []).filter(p => {
     const n = leaf(p.worktree).toLowerCase();
@@ -27,20 +30,43 @@ export default function Projects() {
       </div>
       <div className="content">
         {err && <div className="errbox" style={{ margin: "12px 16px" }}>{err}</div>}
-        <div className="search-bar">
-          <input className="search-input" placeholder={t("projects.search")} value={q} onChange={e => setQ(e.target.value)} />
-        </div>
-        <div className="list">
-          <button className="row" onClick={() => (location.hash = "#/browse")}>
-            <div className="row-icon" style={{ background: "var(--surface2)", color: "var(--muted)", fontSize: 20 }}>📁</div>
-            <div className="row-body">
-              <div className="row-title">Browse folders…</div>
-              <div className="row-sub">Open opencode in any folder</div>
+        {needsSetup && (
+          <div style={{ margin: "14px 16px 0", padding: "14px 16px", borderRadius: "var(--r-md)", background: "var(--accent-bg)", border: "1px solid var(--accent-line)", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", gap: 11, alignItems: "flex-start" }}>
+              <span style={{ color: "var(--accent)", display: "flex", marginTop: 1 }}><Icon name="qr" size={18} strokeWidth={1.8} /></span>
+              <div style={{ fontSize: 13.5, lineHeight: 1.5, color: "var(--accent-2)" }}>
+                Pair with your desktop gateway to see opencode projects here.
+              </div>
             </div>
-            <div className="row-chev">›</div>
-          </button>
-          {!projects && !err && <div className="spinner" />}
-          {projects && filtered.length === 0 && <div className="empty-state"><div className="empty-icon">📂</div>{t("projects.empty")}</div>}
+            <button className="btn" style={{ marginTop: 6, background: "var(--accent)" }} onClick={() => (location.hash = "#/settings")}>
+              Open Settings
+            </button>
+          </div>
+        )}
+        {!needsSetup && (
+          <div className="search-bar">
+            <input className="search-input" placeholder={t("projects.search")} value={q} onChange={e => setQ(e.target.value)} />
+          </div>
+        )}
+        <div className="list">
+          {!needsSetup && (
+            <button className="row" onClick={() => (location.hash = "#/browse")}>
+              <div className="row-icon" style={{ background: "var(--surface-2)", color: "var(--muted)" }}><Icon name="browse" size={22} strokeWidth={1.6} /></div>
+              <div className="row-body">
+                <div className="row-title">Browse folders…</div>
+                <div className="row-sub">Open opencode in any folder</div>
+              </div>
+              <div className="row-chev">›</div>
+            </button>
+          )}
+          {!projects && !err && !needsSetup && <div className="spinner" />}
+          {projects && filtered.length === 0 && !needsSetup && (
+            <div className="empty-state">
+              <div className="empty-icon" style={{ marginBottom: 8 }}><Logo size={56} showText={false} /></div>
+              <div className="et">No projects yet</div>
+              <div className="ed">{t("projects.empty")}</div>
+            </div>
+          )}
           {filtered.map((p, i) => {
             const name = leaf(p.worktree);
             const [c1, c2] = hashColor(p.worktree);

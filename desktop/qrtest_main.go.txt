@@ -1,0 +1,41 @@
+// +build ignore
+
+package main
+
+import (
+	"fmt"
+	"image"
+	"image/png"
+	"os"
+
+	"github.com/skip2/go-qrcode"
+	"golang.org/x/image/bmp"
+)
+
+func main() {
+	qr, err := qrcode.New("test", qrcode.Medium)
+	if err != nil { panic(err) }
+	img := qr.Image(256)
+
+	f, _ := os.Create("test.bmp")
+	bmp.Encode(f, img)
+	f.Close()
+	fi, _ := os.Stat("test.bmp")
+	fmt.Printf("test.bmp size=%d first8=%x\n", fi.Size(), readFirst8("test.bmp"))
+
+	f2, _ := os.Create("test.png")
+	png.Encode(f2, img)
+	f2.Close()
+	fi2, _ := os.Stat("test.png")
+	fmt.Printf("test.png size=%d first8=%x\n", fi2.Size(), readFirst8("test.png"))
+
+	var _ image.Image = img
+}
+
+func readFirst8(name string) []byte {
+	f, _ := os.Open(name)
+	defer f.Close()
+	b := make([]byte, 8)
+	f.Read(b)
+	return b
+}

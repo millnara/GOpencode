@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import type { FileEntry } from "../lib/types";
 import { b64uEnc, leaf } from "../lib/util";
+import Icon from "../components/Icon";
 
 function parentDir(p: string): string | null {
   const norm = (p || "").replace(/[\\/]+$/, "");
@@ -65,7 +66,9 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
   return (
     <div className="screen">
       <div className="topbar">
-        <button className="iconbtn" onClick={() => (location.hash = "#/")}>‹</button>
+        <button className="iconbtn" onClick={() => (location.hash = "#/")} aria-label="Back">
+          <Icon name="back" size={22} strokeWidth={2} />
+        </button>
         <div className="title">{leaf(dir) || dir}<div className="sub">{entries ? dirs.length + " folders" + (files.length ? ", " + files.length + " files" : "") : "browse"}</div></div>
         <button className="btn" style={{ width: "auto", padding: "8px 14px", fontSize: 13, margin: 0 }}
           onClick={() => (location.hash = "#/p/" + b64uEnc(dir))}>Open</button>
@@ -77,15 +80,15 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
           <div style={{ padding: "4px 20px 8px", fontSize: 11, color: "var(--fade)", textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 600, wordBreak: "break-all" }}>{dir}</div>
           {par && (
             <button className="row" onClick={() => setDir(par)}>
-              <div className="row-icon" style={{ background: "var(--surface2)", color: "var(--muted)", fontSize: 16 }}>⬆</div>
+              <div className="row-icon" style={{ background: "var(--surface-2)", color: "var(--muted)" }}><Icon name="back" size={18} strokeWidth={1.8} /></div>
               <div className="row-body"><div className="row-title">..</div><div className="row-sub">Up</div></div>
               <div className="row-chev">›</div>
             </button>
           )}
-          {entries && dirs.length === 0 && files.length === 0 && <div className="empty-state"><div className="empty-icon">📂</div>Empty folder</div>}
+          {entries && dirs.length === 0 && files.length === 0 && <div className="empty-state"><div className="empty-icon" style={{ color: "var(--fade)" }}><Icon name="folder" size={44} strokeWidth={1.4} /></div>Empty folder</div>}
           {dirs.map(d => (
             <div key={d.absolute}><div className="divider" /><button className="row" onClick={() => setDir(d.absolute)}>
-              <div className="row-icon" style={{ background: "var(--surface2)", fontSize: 16 }}>📁</div>
+              <div className="row-icon" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}><Icon name="folder" size={20} strokeWidth={1.6} /></div>
               <div className="row-body">
                 <div className="row-title">{d.name}</div>
                 {d.ignored && <div className="row-sub">ignored</div>}
@@ -98,7 +101,7 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
               <div style={{ padding: "20px 20px 8px", fontSize: 11, color: "var(--fade)", textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 600 }}>Files ({files.length})</div>
               {files.map(f => (
                 <div key={f.absolute}><div className="divider" /><button className="row" onClick={() => viewFile(f.name)}>
-                  <div className="row-icon" style={{ background: "var(--surface2)", fontSize: 14 }}>📄</div>
+                  <div className="row-icon" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}><Icon name="info" size={18} strokeWidth={1.6} /></div>
                   <div className="row-body">
                     <div className="row-title" style={{ fontSize: 14 }}>{f.name}</div>
                     {f.ignored && <div className="row-sub">ignored</div>}
@@ -111,14 +114,16 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
         </div>
       </div>
       <button className="fab" onClick={() => (location.hash = "#/p/" + b64uEnc(dir))}>
-        ▶ Open opencode here
+        <Icon name="play" size={14} strokeWidth={2.4} fill="currentColor" /> Open opencode here
       </button>
       {viewing && (
         <div className="sheet-bg" onClick={e => { if (e.target === e.currentTarget) { setViewing(null); setFileContent(null); } }}>
           <div className="sheet">
             <div className="handle" />
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 20px", borderBottom: "1px solid var(--border)" }}>
-              <button className="iconbtn" onClick={() => { setViewing(null); setFileContent(null); }}>✕</button>
+              <button className="iconbtn" onClick={() => { setViewing(null); setFileContent(null); }} aria-label="Close">
+                <Icon name="close" size={20} strokeWidth={2.2} />
+              </button>
               <div style={{ fontSize: 14, fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewing.name}</div>
               <div style={{ fontSize: 11, color: "var(--fade)" }}>{dir}</div>
             </div>

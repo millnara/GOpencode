@@ -2,16 +2,11 @@ package main
 
 import (
 	_ "embed"
-	"fmt"
 	"os"
 	"time"
 
 	"github.com/getlantern/systray"
 	"golang.org/x/sys/windows/registry"
-)
-
-var (
-	webPort int
 )
 
 //go:embed assets/icon_idle.ico
@@ -47,10 +42,10 @@ func isAutoStart() bool {
 	return err == nil
 }
 
-func onReady(gw *Gateway, cfg *Config, onRestart func(Config)) {
+func onReady(gw *Gateway, cfg *Config, ipMon *IPMonitor, onRestart func(Config)) {
 	systray.SetIcon(iconIdle)
 	systray.SetTitle("GOpencode")
-	systray.SetTooltip("GOpencode — idle")
+	systray.SetTooltip("GOpencode - waiting for connection")
 
 	mStatus := systray.AddMenuItem("Status: Waiting for connection", "Current status")
 	mStatus.Disable()
@@ -58,7 +53,6 @@ func onReady(gw *Gateway, cfg *Config, onRestart func(Config)) {
 	systray.AddSeparator()
 
 	mPairing := systray.AddMenuItem("Show pairing QR", "Display QR code for phone pairing")
-	mOpen := systray.AddMenuItem("Open opencode web UI", "Open the opencode web interface")
 	mSettings := systray.AddMenuItem("Settings", "Configure gateway")
 
 	systray.AddSeparator()
@@ -69,22 +63,21 @@ func onReady(gw *Gateway, cfg *Config, onRestart func(Config)) {
 
 	mQuit := systray.AddMenuItem("Quit", "Stop gateway and exit")
 
-	// Status icon updater
 	go func() {
 		for {
 			status := gw.Status()
 			switch status {
 			case "paired":
 				systray.SetIcon(iconGreen)
-				systray.SetTooltip("GOpencode — phone connected")
-				mStatus.SetTitle("Status: Phone connected \u2713")
+				systray.SetTooltip("GOpencode - phone connected")
+				mStatus.SetTitle("Status: Phone connected")
 			case "error":
 				systray.SetIcon(iconRed)
-				systray.SetTooltip("GOpencode — error")
+				systray.SetTooltip("GOpencode - error")
 				mStatus.SetTitle("Status: Error")
 			default:
 				systray.SetIcon(iconIdle)
-				systray.SetTooltip("GOpencode — waiting for connection")
+				systray.SetTooltip("GOpencode - waiting for connection")
 				mStatus.SetTitle("Status: Waiting for connection")
 			}
 			time.Sleep(2 * time.Second)
@@ -95,15 +88,10 @@ func onReady(gw *Gateway, cfg *Config, onRestart func(Config)) {
 		for {
 			select {
 			case <-mPairing.ClickedCh:
-				url := fmt.Sprintf("http://127.0.0.1:%d/pairing", webPort)
-				openBrowser(url)
-
-			case <-mOpen.ClickedCh:
-				openBrowser(cfg.OcURL)
+				showPairingWindow(gw, cfg)
 
 			case <-mSettings.ClickedCh:
-				url := fmt.Sprintf("http://127.0.0.1:%d/settings", webPort)
-				openBrowser(url)
+				showSettingsWindow(cfg, ipMon, onRestart)
 
 			case <-mAutoStart.ClickedCh:
 				newVal := !cfg.AutoStart
