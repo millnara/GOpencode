@@ -265,7 +265,7 @@ function tryConnectUrl(url: string, room: string, pw: string, timeoutMs: number)
     const t = setTimeout(() => {
       if (settled) return;
       settled = true;
-      console.error("[ws] timeout after", timeoutMs, "ms on", url);
+      log.error("transport", "ws timeout after " + timeoutMs + "ms: " + url);
       socket.close();
       reject(new Error("timeout"));
     }, timeoutMs);
