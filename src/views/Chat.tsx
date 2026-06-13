@@ -74,7 +74,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [apiOk, setApiOk] = useState<boolean | null>(null);
   const [visibleCount, setVisibleCount] = useState(30);
   const msgQueue = useRef<{ text: string; files: typeof attachments }[]>([]);
-  const [queueLen, setQueueLen] = useState(0);
+  const [queuedMessages, setQueuedMessages] = useState<{ text: string; id: number }[]>([]);
+  const queueId = useRef(0);
   const sessionDir = useRef(dir);
   const prevScrollHeight = useRef<number | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -358,7 +359,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const drainQueue = async () => {
     while (msgQueue.current.length > 0) {
       const next = msgQueue.current.shift()!;
-      setQueueLen(msgQueue.current.length);
+      setQueuedMessages(prev => prev.slice(1));
       await doSend(next.text, next.files);
       await new Promise<void>((resolve) => {
         const check = () => { if (!busyRef.current) resolve(); else requestAnimationFrame(check); };
@@ -381,7 +382,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     if (busy) {
       // Queue the message — it'll be sent when the current turn finishes
       msgQueue.current.push({ text, files });
-      setQueueLen(msgQueue.current.length);
+      const id = ++queueId.current;
+      setQueuedMessages(prev => [...prev, { text, id }]);
       showToast("Message queued — will send when ready", "info");
       return;
     }
@@ -483,6 +485,17 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
             </div>
           </div>
         )}
+        {queuedMessages.map((qm) => (
+          <div key={qm.id} className="msg-group">
+            <div className="msg-row user">
+              <div className="msg-avatar user">Y</div>
+              <div className="msg-block">
+                <div className="msg-bubble msg-queued">{qm.text}</div>
+                <div className="msg-queued-tag">Hold your horses!</div>
+              </div>
+            </div>
+          </div>
+        ))}
         {busy && !pending && (
           <div className="msg-group">
             <div className="msg-row assistant">
@@ -590,7 +603,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
             onClick={send} aria-label={busy ? "Queue" : "Send"}>
             {busy ? <Icon name="send" size={16} strokeWidth={2.2} /> : <Icon name="send" size={18} strokeWidth={2.2} />}
           </button>
-          {queueLen > 0 && <span className="queue-badge">{queueLen}</span>}
+          {queuedMessages.length > 0 && <span className="queue-badge">{queuedMessages.length}</span>}
         </div>
       </div>
 

@@ -46,7 +46,7 @@ export default function Sessions({ dir }: { dir: string }) {
   useEffect(() => { load(); }, [dir]);
 
   useEffect(() => {
-    const stop = streamEvents(dir, (ev: OcEvent) => {
+    const stop = streamEvents("", (ev: OcEvent) => {
       const p = ev.properties;
       if (ev.type === "session.status") {
         const isBusy = p.status?.type === "busy";
