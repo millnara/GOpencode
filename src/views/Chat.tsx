@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
-import { api, streamEvents, defaultModel } from "../lib/api";
+import { api, streamEvents, defaultModel, healthProbe } from "../lib/api";
 import type { ModelRef, OcEvent, PermissionRequest, ProvidersResponse, Agent, Part, ProviderConfig, Command, QuestionRequest } from "../lib/types";
 import MessageView, { type Group } from "../components/MessageView";
 import PermissionPrompt from "../components/PermissionPrompt";
@@ -67,6 +67,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [formatMode, setFormatMode] = useState<string | null>(null);
   const [toolsDisabled, setToolsDisabled] = useState(false);
   const [offline, setOffline] = useState(!navigator.onLine);
+  const [apiOk, setApiOk] = useState<boolean | null>(null);
   const [visibleCount, setVisibleCount] = useState(30);
   const prevScrollHeight = useRef<number | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -240,6 +241,13 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     return () => { removeEventListener("online", on); removeEventListener("offline", off); };
   }, []);
 
+  useEffect(() => {
+    if (!isConnected()) { setApiOk(null); return; }
+    let stopped = false;
+    healthProbe().then(r => { if (!stopped) setApiOk(r.ok); });
+    return () => { stopped = true; };
+  }, [isConnected()]);
+
   // Refetch the transcript and reconcile the busy spinner. The live event stream
   // only carries FUTURE events, so a session.idle that fired while we were
   // backgrounded or mid-reconnect is gone — without this resync the spinner would
@@ -401,7 +409,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           <div className="name">{title || "Session"}</div>
           <div className="path">{dir.split(/[\\/]/).pop()}{isConnected() ? " · connected" : ""}</div>
         </div>
-        <div className={"conn-dot " + (isP2P() ? "p2p" : isConnected() ? "ws" : "direct")} />
+        <div className={"conn-dot " + (isP2P() ? "p2p" : apiOk === true ? "ws" : apiOk === false ? "err" : isConnected() ? "ws" : "direct")} />
         <button className="back" aria-label="Session actions" onClick={() => setSheet("session")}><Icon name="more" size={20} strokeWidth={2} /></button>
       </div>
 

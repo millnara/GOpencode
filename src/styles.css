@@ -234,6 +234,7 @@ body::before {
 .conn-dot.p2p { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
 .conn-dot.ws { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
 .conn-dot.direct { background: var(--fade); }
+.conn-dot.err { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
 
 .msg-list { flex: 1; overflow-y: auto; padding: 8px 14px 16px; -webkit-overflow-scrolling: touch; }
 .msg-group { padding: 14px 0; animation: fadeUp .3s var(--ease) both; }

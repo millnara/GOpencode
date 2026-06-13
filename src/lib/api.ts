@@ -1,6 +1,6 @@
 import { getConn } from "./settings";
 import { isConnected, request as wsRequest, subscribeSSE, getCurrentUrls } from "./transport";
-import { log } from "./log";
+import { log, friendlyError } from "./log";
 import type {
   Project, Session, MessageWithParts, ProvidersResponse, Agent, OcEvent, ModelRef,
   ConfigProvidersResponse, Command, FileEntry, PathResponse,
@@ -133,6 +133,15 @@ export const api = {
   todo: (dir: string, id: string) => req<{ content: string; status: string; priority: string }[]>(`/session/${id}/todo?${qd(dir)}`),
   fileContent: (dir: string, path: string) => req<{ type: string; content: string }>(`/file/content?path=${encodeURIComponent(path)}&${qd(dir)}`),
 };
+
+export async function healthProbe(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await req<any>("/path");
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: friendlyError(e) };
+  }
+}
 
 export function defaultModel(prov: ProvidersResponse | null): ModelRef | null {
   const connected = Array.isArray(prov?.connected) ? prov!.connected : [];

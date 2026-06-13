@@ -4,6 +4,7 @@ import { ensureNotifyPermission } from "../lib/notify";
 import { t } from "../lib/i18n";
 import { connect, disconnect, reconnectNow, onStateChange, getState, getActiveUrl, isP2P, type TransportState } from "../lib/transport";
 import { log, type LogEntry } from "../lib/log";
+import { healthProbe } from "../lib/api";
 import Logo from "../components/Logo";
 import Icon from "../components/Icon";
 import NativeQrScanner from "../components/NativeQrScanner";
@@ -74,10 +75,17 @@ export default function Settings() {
   const [gwMsg, setGwMsg] = useState("");
   const [showLogs, setShowLogs] = useState(false);
   const [logEntries, setLogEntries] = useState<LogEntry[]>(log.entries());
+  const [apiHealth, setApiHealth] = useState<"idle" | "ok" | "err">("idle");
 
   useEffect(() => { setC(getConn()); }, []);
   useEffect(() => { loadPairing().then(setPairing); }, []);
   useEffect(() => onStateChange(setTState), []);
+  useEffect(() => {
+    if (tState !== "connected") { setApiHealth("idle"); return; }
+    let stopped = false;
+    healthProbe().then(r => { if (!stopped) setApiHealth(r.ok ? "ok" : "err"); });
+    return () => { stopped = true; };
+  }, [tState]);
   const set = (k: keyof Conn, v: any) => setC((p) => ({ ...p, [k]: v }));
 
   const save = async () => {
@@ -182,6 +190,12 @@ export default function Settings() {
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: statusColor }}>
                 <span className="dot" style={{ width: 8, height: 8, background: statusColor }} />
                 {statusLabel}
+                {connected && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: apiHealth === "ok" ? "var(--ok)" : apiHealth === "err" ? "var(--danger)" : "var(--muted)" }}>
+                    <span className="dot" style={{ width: 6, height: 6, background: apiHealth === "ok" ? "var(--ok)" : apiHealth === "err" ? "var(--danger)" : "var(--fade)" }} />
+                    {apiHealth === "ok" ? "API" : apiHealth === "err" ? "API down" : "checking…"}
+                  </span>
+                )}
               </span>
             )}
           </div>
