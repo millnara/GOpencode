@@ -580,8 +580,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
                 document.addEventListener("touchend", cancel);
               }}
             >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="currentColor" strokeWidth="1.5" strokeDasharray="50.3" strokeDashoffset="50.3" className="stop-ring" /></svg>
-              <span className="stop-label">Stop</span>
+              <span className="stop-fill" />
+              <Icon name="stop" size={16} strokeWidth={2} fill="currentColor" />
             </button>
           )}
           <button className={"send-btn" + (busy ? " busying" : "")}
