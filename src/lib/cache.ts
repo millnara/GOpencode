@@ -15,6 +15,10 @@ export function cacheSet(key: string, data: any): void {
   try { localStorage.setItem(PREFIX + key, JSON.stringify({ data, ts: Date.now() })); } catch { /* quota exceeded — ignore */ }
 }
 
+export function cacheRemove(key: string): void {
+  try { localStorage.removeItem(PREFIX + key); } catch { /* ignore */ }
+}
+
 export function cacheAge(key: string): number | null {
   try {
     const raw = localStorage.getItem(PREFIX + key);

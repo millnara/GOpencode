@@ -1,7 +1,7 @@
 import { getConn } from "./settings";
 import { isConnected, request as wsRequest, subscribeSSE, getCurrentUrls } from "./transport";
 import { log, friendlyError } from "./log";
-import { cacheGet, cacheSet } from "./cache";
+import { cacheGet, cacheSet, cacheRemove } from "./cache";
 import type {
   Project, Session, MessageWithParts, ProvidersResponse, Agent, OcEvent, ModelRef,
   ConfigProvidersResponse, Command, FileEntry, PathResponse,
@@ -67,7 +67,7 @@ export const api = {
     return data;
   },
   createSession: (dir: string, title?: string) => {
-    cacheSet("sessions:" + dir, null); // invalidate
+    cacheRemove("sessions:" + dir);
     return req<Session>(`/session?${qd(dir)}`, { method: "POST", body: JSON.stringify(title ? { title } : {}) });
   },
   session: (dir: string, id: string) => req<Session>(`/session/${id}?${qd(dir)}`),
@@ -78,11 +78,11 @@ export const api = {
     return data;
   },
   deleteSession: async (dir: string, id: string) => {
-    cacheSet("sessions:" + dir, null);
+    cacheRemove("sessions:" + dir);
     return req(`/session/${id}?${qd(dir)}`, { method: "DELETE" });
   },
   updateSession: async (dir: string, id: string, patch: Record<string, any>) => {
-    cacheSet("sessions:" + dir, null);
+    cacheRemove("sessions:" + dir);
     return req<Session>(`/session/${id}?${qd(dir)}`, { method: "PATCH", body: JSON.stringify(patch) });
   },
   shareSession: (dir: string, id: string) => req<{ url: string }>(`/session/${id}/share?${qd(dir)}`, { method: "POST" }),
