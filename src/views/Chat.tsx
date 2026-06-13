@@ -38,6 +38,7 @@ async function releaseWakeLock() {
 export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const msgs = useRef<Map<string, Group>>(new Map());
   const wasBusy = useRef(false);
+  const busyRef = useRef(false);
   const [, force] = useReducer((x) => x + 1, 0);
   const raf = useRef<number | null>(null);
   const pendingUpdate = useRef(false);
@@ -48,7 +49,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   };
 
   const [title, setTitle] = useState("Session");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusyState] = useState(false);
+  const setBusy = (v: boolean) => { busyRef.current = v; setBusyState(v); };
   const [input, setInput] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [perms, setPerms] = useState<PermissionRequest[]>([]);
@@ -358,9 +360,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
       const next = msgQueue.current.shift()!;
       setQueueLen(msgQueue.current.length);
       await doSend(next.text, next.files);
-      // wait for this turn to complete before sending next
       await new Promise<void>((resolve) => {
-        const check = () => { if (!busy) resolve(); else requestAnimationFrame(check); };
+        const check = () => { if (!busyRef.current) resolve(); else requestAnimationFrame(check); };
         check();
       });
     }
