@@ -10,7 +10,12 @@ const BUILD_HASH = import.meta.env.VITE_BUILD_HASH || "dev";
 export function getBuildHash(): string { return BUILD_HASH; }
 
 export async function getStoredHash(): Promise<string | null> {
-  try { const { value } = await Preferences.get({ key: HASH_KEY }); return value || null; } catch { return null; }
+  try {
+    const ls = localStorage.getItem("oc-latest-hash");
+    if (ls) return ls;
+    const { value } = await Preferences.get({ key: HASH_KEY });
+    return value || null;
+  } catch { return null; }
 }
 
 async function getGatewayHttpUrl(): Promise<string | null> {
@@ -61,6 +66,10 @@ export async function pullUpdate(onProgress?: (msg: string) => void): Promise<bo
   await Preferences.set({ key: HASH_KEY, value: manifest.hash });
 
   log.info("ui", "Update pulled: " + manifest.hash.slice(0, 8));
+  // Also write to localStorage so the bootstrapper script can read it
+  // before React/Capacitor plugins are available
+  try { localStorage.setItem("oc-latest-html", html); } catch { /* */ }
+  try { localStorage.setItem("oc-latest-hash", manifest.hash); } catch { /* */ }
   onProgress?.("Update saved — reloading...");
   return true;
 }

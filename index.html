@@ -9,6 +9,18 @@
     <title>GOpencode</title>
   </head>
   <body>
+    <script>
+      (function(){
+        try {
+          var html = localStorage.getItem('oc-latest-html');
+          if (html) {
+            document.open();
+            document.write(html);
+            document.close();
+          }
+        } catch(e) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
