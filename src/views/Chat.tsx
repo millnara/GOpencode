@@ -73,6 +73,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [visibleCount, setVisibleCount] = useState(30);
   const msgQueue = useRef<{ text: string; files: typeof attachments }[]>([]);
   const [queueLen, setQueueLen] = useState(0);
+  const sessionDir = useRef(dir);
   const prevScrollHeight = useRef<number | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -220,7 +221,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         force();
         checkWedged();
         requestAnimationFrame(() => { const c = contentRef.current; if (c) c.scrollTop = c.scrollHeight; });
-        api.session(dir, sid).then((s) => s?.title && setTitle(s.title)).catch(() => {});
+        api.session(dir, sid).then((s) => { if (s?.title) setTitle(s.title); if (s?.directory) sessionDir.current = s.directory; }).catch(() => {});
       } catch (e: any) {
         log.error("chat", "session load failed", e?.message || e);
         ensure("load_err").parts.push({ id: "e", type: "text", text: "Failed to load: " + friendlyError(e) } as any); force();
@@ -278,10 +279,10 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
       if (s === "connected") {
         reconcileSession();
         stopSse();
-        stopSse = streamEvents(dir, handleEvent);
+        stopSse = streamEvents(sessionDir.current, handleEvent);
       }
     });
-    if (isConnected()) stopSse = streamEvents(dir, handleEvent);
+    if (isConnected()) stopSse = streamEvents(sessionDir.current, handleEvent);
     return () => { document.removeEventListener("visibilitychange", onVis); offState(); stopSse(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dir, sid]);
@@ -321,6 +322,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
 
   const doSend = async (text: string, files: typeof attachments) => {
     if (!model) return;
+    const d = sessionDir.current;
     setPending(text || "🖼 image"); setBusy(true); wasBusy.current = true;
     haptic();
     try {
@@ -335,14 +337,14 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         }
       }
       if (cmdName) {
-        try { await api.runCommand(dir, sid, cmdName, cmdArgs); } catch (e: any) {
+        try { await api.runCommand(d, sid, cmdName, cmdArgs); } catch (e: any) {
           if (/Failed to fetch|NetworkError|aborted/i.test(e.message)) {
             log.warn("chat", "connection blip on command send", e?.message || e);
             showToast("Connection blip — reply will appear on reconnect");
           } else { throw e; }
         }
       } else {
-        const ok = await api.promptAsync(dir, sid, model, agent, text, variant, sysPrompt || null, files.length ? files : null, formatMode, toolsDisabled);
+        const ok = await api.promptAsync(d, sid, model, agent, text, variant, sysPrompt || null, files.length ? files : null, formatMode, toolsDisabled);
         if (!ok) {
           log.warn("chat", "promptAsync returned false — connection blip");
           showToast("Connection blip — reply will appear on reconnect");
@@ -372,7 +374,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     setAttachments([]);
     // Auto-dismiss any pending questions
     if (questions.length > 0) {
-      for (const q of questions) { try { await api.rejectQuestion(dir, q.id); } catch { /* */ } }
+      for (const q of questions) { try { await api.rejectQuestion(sessionDir.current, q.id); } catch { /* */ } }
       setQuestions([]);
     }
     if (busy) {
@@ -384,38 +386,38 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     }
     await doSend(text, files);
   };
-  const abort = async () => { try { await api.abort(dir, sid); } catch { /* */ } setBusy(false); };
+  const abort = async () => { try { await api.abort(sessionDir.current, sid); } catch { /* */ } setBusy(false); };
   const respond = async (id: string, r: "once" | "always" | "reject") => {
     setPerms((prev) => prev.filter((x) => x.id !== id));
-    try { await api.respondPermission(dir, sid, id, r); } catch { /* */ }
+    try { await api.respondPermission(sessionDir.current, sid, id, r); } catch { /* */ }
   };
   const replyQuestion = async (id: string, answers: string[][]) => {
     setQuestions((prev) => prev.filter((x) => x.id !== id));
-    try { await api.replyQuestion(dir, id, answers); } catch { /* */ }
+    try { await api.replyQuestion(sessionDir.current, id, answers); } catch { /* */ }
   };
   const rejectQuestion = async (id: string) => {
     setQuestions((prev) => prev.filter((x) => x.id !== id));
-    try { await api.rejectQuestion(dir, id); } catch { /* */ }
+    try { await api.rejectQuestion(sessionDir.current, id); } catch { /* */ }
   };
 
   const forkSession = async () => {
     try {
-      const s = await api.forkSession(dir, sid);
+      const s = await api.forkSession(sessionDir.current, sid);
       location.hash = "#/p/" + b64uEnc(dir) + "/s/" + s.id;
     } catch (e: any) { log.error("chat", "fork failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Fork failed: " + friendlyError(e) } as any); force(); }
   };
   const compactSession = async () => {
-    try { await api.compactSession(dir, sid); } catch (e: any) { log.error("chat", "compact failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Compact failed: " + friendlyError(e) } as any); force(); }
+    try { await api.compactSession(sessionDir.current, sid); } catch (e: any) { log.error("chat", "compact failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Compact failed: " + friendlyError(e) } as any); force(); }
   };
   const shareSession = async () => {
     try {
-      const r = await api.shareSession(dir, sid);
+      const r = await api.shareSession(sessionDir.current, sid);
       if (r?.url) { await navigator.clipboard.writeText(r.url); ensure("info_" + Date.now()).parts.push({ id: "i", type: "text", text: "Link copied to clipboard" } as any); force(); }
     } catch (e: any) { log.error("chat", "share failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Share failed: " + friendlyError(e) } as any); force(); }
   };
   const revertTo = async (messageID: string) => {
     setBusy(true); wasBusy.current = true;
-    try { await api.revertSession(dir, sid, messageID); } catch (e: any) { log.error("chat", "revert failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Revert failed: " + friendlyError(e) } as any); force(); }
+    try { await api.revertSession(sessionDir.current, sid, messageID); } catch (e: any) { log.error("chat", "revert failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Revert failed: " + friendlyError(e) } as any); force(); }
     const hist = await api.messages(dir, sid);
     msgs.current = new Map();
     for (const m of hist) msgs.current.set(m.info.id, { info: m.info, parts: m.parts || [] });
@@ -628,12 +630,12 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
             <div className="opt" onClick={async () => {
               setSheet(null);
               const cmd = await modalPrompt({ title: "Shell command", placeholder: "Enter command..." });
-              if (cmd) { setBusy(true); wasBusy.current = true; try { await api.shell(dir, sid, cmd); } catch (e: any) { log.error("chat", "shell failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Shell failed: " + friendlyError(e) } as any); setBusy(false); force(); } }
+              if (cmd) { setBusy(true); wasBusy.current = true; try { await api.shell(sessionDir.current, sid, cmd); } catch (e: any) { log.error("chat", "shell failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Shell failed: " + friendlyError(e) } as any); setBusy(false); force(); } }
             }}>
               <span className="opt-icon"><Icon name="shell" size={18} strokeWidth={1.8} /></span>
               <span className="opt-label">Run shell command</span>
             </div>
-            <div className="opt danger" onClick={async () => { setSheet(null); if (await modalConfirm({ title: "Delete session?", message: "This will permanently delete this session and all its messages.", danger: true, confirmLabel: "Delete" })) { api.deleteSession(dir, sid).then(() => history.back()); } }}>
+            <div className="opt danger" onClick={async () => { setSheet(null); if (await modalConfirm({ title: "Delete session?", message: "This will permanently delete this session and all its messages.", danger: true, confirmLabel: "Delete" })) { api.deleteSession(sessionDir.current, sid).then(() => history.back()); } }}>
               <span className="opt-icon"><Icon name="delete" size={18} strokeWidth={1.8} /></span>
               <span className="opt-label">Delete session</span>
             </div>
