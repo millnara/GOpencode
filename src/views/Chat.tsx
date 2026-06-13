@@ -71,6 +71,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [offline, setOffline] = useState(!navigator.onLine);
   const [apiOk, setApiOk] = useState<boolean | null>(null);
   const [visibleCount, setVisibleCount] = useState(30);
+  const msgQueue = useRef<{ text: string; files: typeof attachments }[]>([]);
+  const [queueLen, setQueueLen] = useState(0);
   const prevScrollHeight = useRef<number | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -189,6 +191,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           setTurnMeta(meta);
         }
         if (wasBusy.current) { wasBusy.current = false; onDone(); }
+        // Drain queued messages
+        if (msgQueue.current.length > 0) requestAnimationFrame(() => drainQueue());
       } break;
       case "session.error": if (p.sessionID === sid) { log.error("chat", "session error: " + (p.error?.name || "unknown"), p.error?.data); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "⚠ " + (p.error?.name || "error") + ": " + (p.error?.data?.message || "") } as any); setBusy(false); schedule(); } break;
       case "permission.asked": if (p.sessionID === sid) setPerms((prev) => prev.find((x) => x.id === p.id) ? prev : [...prev, p]); break;
@@ -315,13 +319,9 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     } catch { /* cancelled */ }
   };
 
-  const send = async () => {
-    const text = input.trim();
-    const files = attachments;
-    if ((!text && !files.length) || busy || !model) return;
-    setInput(""); if (taRef.current) taRef.current.style.height = "auto";
+  const doSend = async (text: string, files: typeof attachments) => {
+    if (!model) return;
     setPending(text || "🖼 image"); setBusy(true); wasBusy.current = true;
-    setAttachments([]);
     haptic();
     try {
       let cmdName: string | null = null;
@@ -349,6 +349,40 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         }
       }
     } catch (e: any) { log.error("chat", "send failed", e?.message || e); showToast("Send failed: " + friendlyError(e), "error"); }
+  };
+
+  const drainQueue = async () => {
+    while (msgQueue.current.length > 0) {
+      const next = msgQueue.current.shift()!;
+      setQueueLen(msgQueue.current.length);
+      await doSend(next.text, next.files);
+      // wait for this turn to complete before sending next
+      await new Promise<void>((resolve) => {
+        const check = () => { if (!busy) resolve(); else requestAnimationFrame(check); };
+        check();
+      });
+    }
+  };
+
+  const send = async () => {
+    const text = input.trim();
+    const files = attachments;
+    if ((!text && !files.length) || !model) return;
+    setInput(""); if (taRef.current) taRef.current.style.height = "auto";
+    setAttachments([]);
+    // Auto-dismiss any pending questions
+    if (questions.length > 0) {
+      for (const q of questions) { try { await api.rejectQuestion(dir, q.id); } catch { /* */ } }
+      setQuestions([]);
+    }
+    if (busy) {
+      // Queue the message — it'll be sent when the current turn finishes
+      msgQueue.current.push({ text, files });
+      setQueueLen(msgQueue.current.length);
+      showToast("Message queued — will send when ready", "info");
+      return;
+    }
+    await doSend(text, files);
   };
   const abort = async () => { try { await api.abort(dir, sid); } catch { /* */ } setBusy(false); };
   const respond = async (id: string, r: "once" | "always" | "reject") => {
@@ -535,9 +569,25 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           <textarea ref={taRef} rows={1} placeholder={t("chat.placeholder")} value={input}
             onChange={(e) => { setInput(e.target.value); const el = e.target; el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 140) + "px"; }}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} />
-          <button className={"send-btn" + (busy ? " busying" : "")} disabled={!busy && (!input.trim() && !attachments.length)} onClick={busy ? abort : send} aria-label={busy ? "Stop" : "Send"}>
-            {busy ? <Icon name="stop" size={15} strokeWidth={0} fill="currentColor" /> : <Icon name="send" size={18} strokeWidth={2.2} />}
+          {busy && (
+            <button className="stop-btn" aria-label="Hold 3s to stop"
+              onMouseDown={() => {
+                const t = setTimeout(() => { abort(); showToast("Turn aborted"); }, 3000);
+                const cancel = () => { clearTimeout(t); document.removeEventListener("mouseup", cancel); document.removeEventListener("touchend", cancel); };
+                document.addEventListener("mouseup", cancel);
+                document.addEventListener("touchend", cancel);
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="currentColor" strokeWidth="1.5" strokeDasharray="50.3" strokeDashoffset="50.3" className="stop-ring" /></svg>
+              <span className="stop-label">Stop</span>
+            </button>
+          )}
+          <button className={"send-btn" + (busy ? " busying" : "")}
+            disabled={!busy && (!input.trim() && !attachments.length)}
+            onClick={send} aria-label={busy ? "Queue" : "Send"}>
+            {busy ? <Icon name="send" size={16} strokeWidth={2.2} /> : <Icon name="send" size={18} strokeWidth={2.2} />}
           </button>
+          {queueLen > 0 && <span className="queue-badge">{queueLen}</span>}
         </div>
       </div>
 
