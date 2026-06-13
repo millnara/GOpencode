@@ -402,8 +402,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           <div className="path">{dir.split(/[\\/]/).pop()}{isConnected() ? " · connected" : ""}</div>
         </div>
         <div className={"conn-dot " + (isP2P() ? "p2p" : isConnected() ? "ws" : "direct")} />
-        {busy && <button className="back stop" aria-label="Stop" onClick={abort}><Icon name="stop" size={18} strokeWidth={2} /></button>}
-        {!busy && <button className="back" aria-label="Session actions" onClick={() => setSheet("session")}><Icon name="more" size={20} strokeWidth={2} /></button>}
+        <button className="back" aria-label="Session actions" onClick={() => setSheet("session")}><Icon name="more" size={20} strokeWidth={2} /></button>
       </div>
 
       {offline && <div className="status-banner offline">Offline — reconnecting…</div>}
@@ -520,7 +519,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           <textarea ref={taRef} rows={1} placeholder={t("chat.placeholder")} value={input}
             onChange={(e) => { setInput(e.target.value); const el = e.target; el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 140) + "px"; }}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} />
-          <button className="send-btn" disabled={!busy && (!input.trim() && !attachments.length)} onClick={busy ? abort : send} aria-label={busy ? "Stop" : "Send"}>
+          <button className={"send-btn" + (busy ? " busying" : "")} disabled={!busy && (!input.trim() && !attachments.length)} onClick={busy ? abort : send} aria-label={busy ? "Stop" : "Send"}>
             {busy ? <Icon name="stop" size={15} strokeWidth={0} fill="currentColor" /> : <Icon name="send" size={18} strokeWidth={2.2} />}
           </button>
         </div>

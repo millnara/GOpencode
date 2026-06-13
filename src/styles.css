@@ -226,8 +226,6 @@ body::before {
 .chat-header { padding: calc(var(--sat) + 10px) 14px 10px; display: flex; align-items: center; gap: 10px; min-height: 52px; z-index: 10; background: hsl(48 50% 97% / .8); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4); border-bottom: 1px solid var(--border); }
 .chat-header .back { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--muted); flex: none; transition: all var(--ease-fast); }
 .chat-header .back:active { background: var(--surface-2); transform: scale(.92); }
-.chat-header .back.stop { color: var(--danger); background: var(--danger-bg); }
-.chat-header .back.stop:active { background: hsl(355 78% 50% / .18); }
 .chat-header .info { flex: 1; min-width: 0; }
 .chat-header .info .name { font-weight: 620; font-size: 15.5px; letter-spacing: -.015em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .chat-header .info .path { font-size: 11.5px; color: var(--muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -415,7 +413,8 @@ body::before {
 .send-btn { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(160deg, var(--accent), var(--accent-deep)); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; transition: all var(--spring); box-shadow: 0 6px 18px -5px var(--accent-glow); }
 .send-btn:active { transform: scale(.88); }
 .send-btn:disabled { background: var(--surface-2); color: var(--fade); box-shadow: none; }
-.send-btn.stop { background: linear-gradient(160deg, var(--danger), hsl(355 70% 42%)); }
+.send-btn.busying { background: linear-gradient(160deg, var(--accent), var(--accent-deep)); animation: pulse-send 1.2s ease-in-out infinite; }
+@keyframes pulse-send { 0%, 100% { box-shadow: 0 6px 18px -5px var(--accent-glow); } 50% { box-shadow: 0 6px 24px -3px var(--accent-glow), 0 0 0 4px hsl(var(--accent-h) 70% 50% / .15); } }
 .send-btn svg { display: block; }
 
 /* ============================================================
