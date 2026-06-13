@@ -9,7 +9,7 @@ export default function BottomNav({ active }: { active: string }) {
     </a>
   );
   return (
-    <nav className="bottomnav">
+    <nav className="bottomnav" role="navigation" aria-label="Main navigation">
       <Tab id="projects" hash="#/" icon="folder" label={t("nav.projects")} />
       <Tab id="settings" hash="#/settings" icon="settings" label={t("nav.settings")} />
     </nav>

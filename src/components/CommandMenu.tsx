@@ -14,12 +14,12 @@ export default function CommandMenu({ commands, value, onPick }: Props) {
   if (!matches.length) return null;
 
   return (
-    <div className="cmdmenu">
+    <div className="cmdmenu" role="listbox" aria-label="Commands">
       {matches.map((c) => (
-        <div key={c.name} className="cmdrow" onClick={() => onPick(c.name)}>
+        <button key={c.name} className="cmdrow" role="option" onClick={() => onPick(c.name)}>
           <span className="cmdname">/{c.name}</span>
           <span className="cmddesc">{c.description || ""}</span>
-        </div>
+        </button>
       ))}
     </div>
   );

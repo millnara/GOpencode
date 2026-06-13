@@ -451,7 +451,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
             <div className="msg-row assistant">
               <div className="msg-avatar assistant" style={{ overflow: "hidden" }}><Mark size={28} /></div>
               <div className="msg-block">
-                <div className="typing"><span /><span /><span /></div>
+                <div className="typing" role="status" aria-label="Assistant is typing"><span /><span /><span /></div>
               </div>
             </div>
           </div>
@@ -545,7 +545,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         <ModelSheet providers={modelProviders} current={model} onPick={setModel} onClose={() => setSheet(null)} />
       )}
       {sheet === "agent" && (
-        <div className="sheet-bg" onClick={e => { if (e.target === e.currentTarget) setSheet(null); }}>
+        <div className="sheet-bg" role="dialog" aria-modal="true" aria-label="Agent" onClick={e => { if (e.target === e.currentTarget) setSheet(null); }}>
           <div className="sheet">
             <div className="handle" />
             <h3>Agent</h3>
@@ -559,7 +559,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         </div>
       )}
       {sheet === "session" && (
-        <div className="sheet-bg" onClick={e => { if (e.target === e.currentTarget) setSheet(null); }}>
+        <div className="sheet-bg" role="dialog" aria-modal="true" aria-label="Session actions" onClick={e => { if (e.target === e.currentTarget) setSheet(null); }}>
           <div className="sheet">
             <div className="handle" />
             <h3>Session</h3>
