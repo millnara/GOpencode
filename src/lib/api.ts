@@ -1,6 +1,7 @@
 import { getConn } from "./settings";
 import { isConnected, request as wsRequest, subscribeSSE, getCurrentUrls } from "./transport";
 import { log, friendlyError } from "./log";
+import { cacheGet, cacheSet } from "./cache";
 import type {
   Project, Session, MessageWithParts, ProvidersResponse, Agent, OcEvent, ModelRef,
   ConfigProvidersResponse, Command, FileEntry, PathResponse,
@@ -53,12 +54,30 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
 const qd = (dir: string) => "directory=" + encodeURIComponent(dir);
 
 export const api = {
-  projects: () => req<Project[]>("/project"),
-  sessions: (dir: string) => req<Session[]>(`/session?${qd(dir)}`),
+  projects: async () => {
+    const cached = cacheGet<Project[]>("projects");
+    if (cached) return cached.data;
+    const data = await req<Project[]>("/project");
+    cacheSet("projects", data);
+    return data;
+  },
+  sessions: async (dir: string) => {
+    const cached = cacheGet<Session[]>("sessions:" + dir);
+    if (cached) return cached.data;
+    const data = await req<Session[]>(`/session?${qd(dir)}`);
+    cacheSet("sessions:" + dir, data);
+    return data;
+  },
   createSession: (dir: string, title?: string) =>
     req<Session>(`/session?${qd(dir)}`, { method: "POST", body: JSON.stringify(title ? { title } : {}) }),
   session: (dir: string, id: string) => req<Session>(`/session/${id}?${qd(dir)}`),
-  messages: (dir: string, id: string) => req<MessageWithParts[]>(`/session/${id}/message?${qd(dir)}`),
+  messages: async (dir: string, id: string) => {
+    const cached = cacheGet<MessageWithParts[]>("msgs:" + dir + ":" + id);
+    if (cached) return cached.data;
+    const data = await req<MessageWithParts[]>(`/session/${id}/message?${qd(dir)}`);
+    cacheSet("msgs:" + dir + ":" + id, data);
+    return data;
+  },
   deleteSession: (dir: string, id: string) => req(`/session/${id}?${qd(dir)}`, { method: "DELETE" }),
   updateSession: (dir: string, id: string, patch: Record<string, any>) =>
     req<Session>(`/session/${id}?${qd(dir)}`, { method: "PATCH", body: JSON.stringify(patch) }),
