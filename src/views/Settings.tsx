@@ -5,6 +5,7 @@ import { t } from "../lib/i18n";
 import { connect, disconnect, reconnectNow, onStateChange, getState, getActiveUrl, isP2P, type TransportState } from "../lib/transport";
 import { log, type LogEntry } from "../lib/log";
 import { healthProbe } from "../lib/api";
+import { checkForUpdate, pullUpdate } from "../lib/updater";
 import Logo from "../components/Logo";
 import Icon from "../components/Icon";
 import NativeQrScanner from "../components/NativeQrScanner";
@@ -76,6 +77,8 @@ export default function Settings() {
   const [showLogs, setShowLogs] = useState(false);
   const [logEntries, setLogEntries] = useState<LogEntry[]>(log.entries());
   const [apiHealth, setApiHealth] = useState<"idle" | "ok" | "err">("idle");
+  const [updateStatus, setUpdateStatus] = useState<"idle" | "checking" | "available" | "pulling" | "done" | "err">("idle");
+  const [updateMsg, setUpdateMsg] = useState("");
 
   useEffect(() => { setC(getConn()); }, []);
   useEffect(() => { loadPairing().then(setPairing); }, []);
@@ -375,6 +378,43 @@ export default function Settings() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* ——— App Update ——— */}
+        <div className="settings-section" style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: "14px 16px", marginTop: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 4 }}>
+            <Icon name="refresh" size={16} strokeWidth={2} />
+            <div style={{ fontSize: 14.5, fontWeight: 500, flex: 1 }}>App Update</div>
+            <span style={{ fontSize: 11, color: "var(--fade)" }}>v0.3.0</span>
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 10 }}>
+            Pull the latest web build from the desktop gateway — no USB needed.
+          </div>
+          {updateStatus === "idle" && (
+            <button className="btn secondary" style={{ width: "100%" }} onClick={async () => {
+              setUpdateStatus("checking");
+              try {
+                const r = await checkForUpdate();
+                if (r.available) setUpdateStatus("available");
+                else { setUpdateMsg("Already up to date"); setUpdateStatus("done"); setTimeout(() => setUpdateStatus("idle"), 2000); }
+              } catch { setUpdateMsg("Check failed — is gateway running?"); setUpdateStatus("err"); }
+            }}>Check for Update</button>
+          )}
+          {updateStatus === "available" && (
+            <button className="btn" style={{ width: "100%" }} onClick={async () => {
+              setUpdateStatus("pulling");
+              try {
+                await pullUpdate((m) => setUpdateMsg(m));
+                setUpdateMsg("Done! Reloading…");
+                setUpdateStatus("done");
+                setTimeout(() => location.reload(), 1500);
+              } catch (e: any) { setUpdateMsg(e.message || "Failed"); setUpdateStatus("err"); }
+            }}>Pull Update</button>
+          )}
+          {updateStatus === "checking" && <div style={{ fontSize: 13, color: "var(--muted)", textAlign: "center", padding: "10px 0" }}>Checking…</div>}
+          {updateStatus === "pulling" && <div style={{ fontSize: 13, color: "var(--accent)", textAlign: "center", padding: "10px 0" }}>{updateMsg}</div>}
+          {updateStatus === "done" && <div style={{ fontSize: 13, color: "var(--ok)", textAlign: "center", padding: "10px 0" }}>{updateMsg}</div>}
+          {updateStatus === "err" && <div style={{ fontSize: 13, color: "var(--danger)", textAlign: "center", padding: "10px 0" }}>{updateMsg}</div>}
         </div>
 
         <div className="settings-footer">

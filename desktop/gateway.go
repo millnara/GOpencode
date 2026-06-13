@@ -2,12 +2,15 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -223,6 +226,16 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.HasPrefix(r.URL.Path, "/app/") {
+		g.serveApp(w, r)
+		return
+	}
+
+	if r.URL.Path == "/app-manifest" {
+		g.serveManifest(w, r)
+		return
+	}
+
 	w.WriteHeader(404)
 }
 
@@ -288,6 +301,10 @@ func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				pc.writeJSON(map[string]interface{}{"id": id, "type": "authed"})
 				logf("ws: sent authed (WebSocket-only, no WebRTC)")
 				g.sendPhrases(pc)
+				hash := g.appHash()
+				if hash != "" {
+					pc.writeJSON(map[string]interface{}{"type": "app-update", "hash": hash, "version": "0.3.0"})
+				}
 			} else {
 				logf("ws: auth FAILED room_matches=%v pw_matches=%v", msg["room"] == g.room, msg["pw"] == g.pw)
 				id, _ := msg["id"].(float64)
@@ -531,6 +548,51 @@ func (g *Gateway) watchdog() {
 			return
 		}
 	}
+}
+
+func (g *Gateway) appDistDir() string {
+	exe, _ := os.Executable()
+	dir := filepath.Join(filepath.Dir(exe), "dist")
+	if _, err := os.Stat(dir); err == nil {
+		return dir
+	}
+	return filepath.Join(filepath.Dir(exe), "..", "dist")
+}
+
+func (g *Gateway) appHash() string {
+	dir := g.appDistDir()
+	index := filepath.Join(dir, "index.html")
+	data, err := os.ReadFile(index)
+	if err != nil {
+		return ""
+	}
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:])
+}
+
+func (g *Gateway) serveApp(w http.ResponseWriter, r *http.Request) {
+	dir := g.appDistDir()
+	rel := strings.TrimPrefix(r.URL.Path, "/app/")
+	if rel == "" {
+		rel = "index.html"
+	}
+	fp := filepath.Join(dir, filepath.FromSlash(rel))
+	fp = filepath.Clean(fp)
+	if !strings.HasPrefix(fp, filepath.Clean(dir)) {
+		http.Error(w, "forbidden", 403)
+		return
+	}
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	http.ServeFile(w, r, fp)
+}
+
+func (g *Gateway) serveManifest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"hash":    g.appHash(),
+		"version": "0.3.0",
+	})
 }
 
 func (g *Gateway) Stop() {

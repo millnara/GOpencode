@@ -10,8 +10,9 @@ import Logo from "./components/Logo";
 import Icon from "./components/Icon";
 import { b64uDec } from "./lib/util";
 import { saveLastRoute, loadLastRoute, isConfigured, loadPairing, hasPin, loadPhrases } from "./lib/settings";
-import { connect, onStateChange, getState, reconnectNow, type TransportState } from "./lib/transport";
+import { connect, onStateChange, getState, reconnectNow, onAppUpdate, type TransportState } from "./lib/transport";
 import { log } from "./lib/log";
+import { getStoredHash, pullUpdate } from "./lib/updater";
 import ToastContainer from "./components/Toast";
 import { ModalHost } from "./components/Modal";
 
@@ -130,6 +131,21 @@ export default function App() {
       removeEventListener("hashchange", h);
       document.removeEventListener("visibilitychange", onVis);
     };
+  }, []);
+
+  // Auto-pull updates when the desktop pushes app-update
+  useEffect(() => {
+    return onAppUpdate(async (hash) => {
+      const stored = await getStoredHash();
+      if (stored === hash) return;
+      log.info("ui", "Auto-pulling update " + hash.slice(0, 8));
+      try {
+        await pullUpdate();
+        location.reload();
+      } catch (e: any) {
+        log.warn("ui", "Auto-update failed: " + (e.message || e));
+      }
+    });
   }, []);
 
   if (!ready) return (

@@ -41,6 +41,13 @@ export function onStateChange(fn: StateListener): () => void {
   return () => { stateListeners.delete(fn); };
 }
 
+type AppUpdateListener = (hash: string, version: string) => void;
+const appUpdateListeners = new Set<AppUpdateListener>();
+export function onAppUpdate(fn: AppUpdateListener): () => void {
+  appUpdateListeners.add(fn);
+  return () => { appUpdateListeners.delete(fn); };
+}
+
 export function getState(): TransportState {
   if (isConnectedFlag) return "connected";
   return isStranded ? "stranded" : "disconnected";
@@ -184,6 +191,11 @@ function handleMessage(raw: any) {
   if (msg.type === "phrases" && msg.set && Array.isArray(msg.set.phrases)) {
     log.info("transport", "phrases set received: " + (msg.set.name || ""));
     savePhrases({ name: msg.set.name || "Set", phrases: msg.set.phrases });
+    return;
+  }
+  if (msg.type === "app-update") {
+    log.info("transport", "app-update received hash=" + (msg.hash || ""));
+    for (const l of appUpdateListeners) l(msg.hash, msg.version);
     return;
   }
   const p = pending.get(msg.id);
