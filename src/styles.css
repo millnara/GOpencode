@@ -190,6 +190,7 @@ body::before {
 
 .row-body,
 .nav-body { flex: 1; min-width: 0; }
+.list { display: flex; flex-direction: column; padding: 0 16px; }
 .row-title,
 .nav-title { font-weight: 560; font-size: 14.5px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .row-sub,

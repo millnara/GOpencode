@@ -520,7 +520,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
           <textarea ref={taRef} rows={1} placeholder={t("chat.placeholder")} value={input}
             onChange={(e) => { setInput(e.target.value); const el = e.target; el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 140) + "px"; }}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} />
-          <button className={"send-btn" + (busy ? " stop" : "")} disabled={busy || (!input.trim() && !attachments.length)} onClick={send} aria-label={busy ? "Stop" : "Send"}>
+          <button className="send-btn" disabled={!busy && (!input.trim() && !attachments.length)} onClick={busy ? abort : send} aria-label={busy ? "Stop" : "Send"}>
             {busy ? <Icon name="stop" size={15} strokeWidth={0} fill="currentColor" /> : <Icon name="send" size={18} strokeWidth={2.2} />}
           </button>
         </div>

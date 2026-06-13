@@ -69,7 +69,7 @@ export default function ModelSheet({ providers, current, onPick, onClose }: Prop
             <div key={p.id} className={"opt" + (current?.providerID === p.id ? " sel" : "")}
               onClick={() => setViewing(p.id)}>
               <span>{p.name}</span>
-              <span style={{ color: "var(--faint)", fontSize: "12.5px" }}>{n} models ›</span>
+              <span style={{ color: "var(--fade)", fontSize: "12.5px" }}>{n} models ›</span>
             </div>
           );
         })}

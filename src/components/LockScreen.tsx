@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { checkPin, setPin, hasPin, clearPin } from "../lib/settings";
 
 export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
@@ -8,7 +8,7 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"unlock" | "create">("unlock");
 
-  hasPin().then(h => { if (!h) { setMode("create"); setSetup(true); } });
+  useEffect(() => { hasPin().then(h => { if (!h) { setMode("create"); setSetup(true); } }); }, []);
 
   const submit = async () => {
     if (mode === "create") {
@@ -54,7 +54,7 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
         {mode === "create" ? (setup ? "Confirm" : "Set PIN") : "Unlock"}
       </button>
       {mode === "unlock" && (
-        <button style={{ marginTop: 16, color: "var(--faint)", fontSize: 12 }} onClick={doClear}>Reset PIN</button>
+        <button style={{ marginTop: 16, color: "var(--fade)", fontSize: 12 }} onClick={doClear}>Reset PIN</button>
       )}
     </div>
   );
