@@ -13,6 +13,8 @@ export interface Conn {
 }
 
 const KEY = "gopencode.conn";
+const ENC_KEY = "gopencode.conn.enc";
+const SALT = new TextEncoder().encode("GOpencode-v0.3.0-salt!");
 const DEFAULTS: Conn = {
   baseUrl: import.meta.env.DEV ? "/api" : "",
   username: "opencode",
@@ -25,6 +27,36 @@ const DEFAULTS: Conn = {
 
 let cache: Conn = { ...DEFAULTS };
 
+async function getEncKey(): Promise<CryptoKey> {
+  const raw = new TextEncoder().encode(navigator.userAgent + location.origin);
+  const baseKey = await crypto.subtle.importKey("raw", raw, "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: SALT, iterations: 100_000, hash: "SHA-256" },
+    baseKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+async function encryptPassword(plain: string): Promise<string> {
+  if (!plain) return "";
+  const key = await getEncKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(plain));
+  return JSON.stringify({ iv: Array.from(iv), d: Array.from(new Uint8Array(enc)) });
+}
+
+async function decryptPassword(blob: string): Promise<string> {
+  if (!blob) return "";
+  try {
+    const { iv, d } = JSON.parse(blob);
+    const key = await getEncKey();
+    const dec = await crypto.subtle.decrypt({ name: "AES-GCM", iv: new Uint8Array(iv) }, key, new Uint8Array(d));
+    return new TextDecoder().decode(dec);
+  } catch { return blob; }
+}
+
 export async function loadConn(): Promise<Conn> {
   try {
     const { value } = await Preferences.get({ key: KEY });
@@ -33,11 +65,26 @@ export async function loadConn(): Promise<Conn> {
       cache = { ...DEFAULTS, ...parsed };
     }
   } catch { /* ignore */ }
+  try {
+    const { value: encBlob } = await Preferences.get({ key: ENC_KEY });
+    if (encBlob) {
+      cache.password = await decryptPassword(encBlob);
+    } else if (cache.password) {
+      await Preferences.set({ key: ENC_KEY, value: await encryptPassword(cache.password) });
+    }
+  } catch { /* ignore */ }
   return cache;
 }
 export async function saveConn(next: Partial<Conn>): Promise<Conn> {
   cache = { ...cache, ...next };
-  try { await Preferences.set({ key: KEY, value: JSON.stringify(cache) }); } catch { /* ignore */ }
+  try {
+    const toStore = { ...cache };
+    if (toStore.password) {
+      await Preferences.set({ key: ENC_KEY, value: await encryptPassword(toStore.password) });
+      toStore.password = "";
+    }
+    await Preferences.set({ key: KEY, value: JSON.stringify(toStore) });
+  } catch { /* ignore */ }
   return cache;
 }
 export function getConn(): Conn { return cache; }
