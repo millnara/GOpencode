@@ -13,6 +13,7 @@ import { saveLastRoute, loadLastRoute, isConfigured, loadPairing, hasPin, loadPh
 import { connect, onStateChange, getState, reconnectNow, type TransportState } from "./lib/transport";
 import { log } from "./lib/log";
 import ToastContainer from "./components/Toast";
+import { ModalHost } from "./components/Modal";
 
 log.enablePersistence("oc_log");
 
@@ -176,6 +177,7 @@ export default function App() {
         <div className="screen">{view}</div>
       )}
       <ToastContainer />
+      <ModalHost />
       {locked && <LockScreen onUnlock={() => setLocked(false)} />}
     </>
   );

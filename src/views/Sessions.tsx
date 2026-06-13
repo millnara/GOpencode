@@ -5,6 +5,8 @@ import { b64uEnc, leaf, timeAgo } from "../lib/util";
 import { t } from "../lib/i18n";
 import { log, friendlyError } from "../lib/log";
 import PullToRefresh from "../components/PullToRefresh";
+import { prompt as modalPrompt, confirm as modalConfirm } from "../components/Modal";
+import Icon from "../components/Icon";
 
 export default function Sessions({ dir }: { dir: string }) {
   const [sessions, setSessions] = useState<Session[] | null>(null);
@@ -25,7 +27,7 @@ export default function Sessions({ dir }: { dir: string }) {
     try { await api.deleteSession(dir, id); load(); } catch (e: any) { setErr(String(e.message || e)); }
   };
   const renameSession = async (id: string, title: string) => {
-    const t = prompt("Rename session:", title);
+    const t = await modalPrompt({ title: "Rename session", defaultValue: title, placeholder: "Session name" });
     if (!t || t === title) return;
     try { await api.updateSession(dir, id, { title: t }); load(); } catch (e: any) { setErr(String(e.message || e)); }
   };
@@ -50,13 +52,13 @@ export default function Sessions({ dir }: { dir: string }) {
           )}
           <div className="list">
             {!sessions && !err && <div className="spinner" />}
-            {sessions && filtered.length === 0 && <div className="empty-state"><div className="empty-icon">💬</div>{q ? "No matches" : t("sessions.empty")}</div>}
+            {sessions && filtered.length === 0 && <div className="empty-state"><div className="empty-icon"><Icon name="doc" size={32} strokeWidth={1.5} /></div>{q ? "No matches" : t("sessions.empty")}</div>}
             {filtered.map((s, i) => (
               <div key={s.id}>
                 {i > 0 && <div className="divider" />}
                 <div style={{ display: "flex", alignItems: "center" }}>
                   <button className="row" style={{ flex: 1 }} onClick={() => (location.hash = "#/p/" + b64uEnc(dir) + "/s/" + s.id)}>
-                    <div className="row-icon" style={{ background: "var(--accent)", fontSize: 16 }}>💬</div>
+                    <div className="row-icon" style={{ background: "var(--accent)" }}><Icon name="doc" size={18} strokeWidth={1.8} /></div>
                     <div className="row-body">
                       <div className="row-title">{s.title || "Untitled session"}</div>
                       <div className="row-sub">{timeAgo(s.time?.updated || s.time?.created)}</div>
@@ -64,7 +66,7 @@ export default function Sessions({ dir }: { dir: string }) {
                     <div className="row-chev">›</div>
                   </button>
                   <button className="iconbtn" style={{ color: "var(--muted)" }} onClick={e => { e.stopPropagation(); renameSession(s.id, s.title || ""); }}>✎</button>
-                  <button className="iconbtn" style={{ color: "var(--danger)", fontSize: 14 }} onClick={e => { e.stopPropagation(); if (confirm("Delete?")) deleteSession(s.id); }}>✕</button>
+                  <button className="iconbtn" style={{ color: "var(--danger)", fontSize: 14 }} onClick={async e => { e.stopPropagation(); if (await modalConfirm({ title: "Delete session?", message: "This cannot be undone.", danger: true, confirmLabel: "Delete" })) deleteSession(s.id); }}>✕</button>
                 </div>
               </div>
             ))}

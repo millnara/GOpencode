@@ -18,6 +18,7 @@ import { b64uEnc } from "../lib/util";
 import { Mark } from "../components/Logo";
 import { log, friendlyError } from "../lib/log";
 import { showToast } from "../components/Toast";
+import { prompt as modalPrompt, confirm as modalConfirm } from "../components/Modal";
 
 async function haptic(light = true) {
   try {
@@ -576,13 +577,13 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
             </div>
             <div className="opt" onClick={async () => {
               setSheet(null);
-              const cmd = prompt("Shell command:");
+              const cmd = await modalPrompt({ title: "Shell command", placeholder: "Enter command..." });
               if (cmd) { setBusy(true); wasBusy.current = true; try { await api.shell(dir, sid, cmd); } catch (e: any) { log.error("chat", "shell failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Shell failed: " + friendlyError(e) } as any); setBusy(false); force(); } }
             }}>
               <span className="opt-icon"><Icon name="shell" size={18} strokeWidth={1.8} /></span>
               <span className="opt-label">Run shell command</span>
             </div>
-            <div className="opt danger" onClick={() => { setSheet(null); if (confirm("Delete this session?")) { api.deleteSession(dir, sid).then(() => history.back()); } }}>
+            <div className="opt danger" onClick={async () => { setSheet(null); if (await modalConfirm({ title: "Delete session?", message: "This will permanently delete this session and all its messages.", danger: true, confirmLabel: "Delete" })) { api.deleteSession(dir, sid).then(() => history.back()); } }}>
               <span className="opt-icon"><Icon name="delete" size={18} strokeWidth={1.8} /></span>
               <span className="opt-label">Delete session</span>
             </div>
