@@ -133,7 +133,7 @@ body::before {
 .screen { display: flex; flex-direction: column; height: 100dvh; max-height: 100dvh; overflow: hidden; background: var(--bg); }
 .with-nav { padding-bottom: 0; }
 .with-nav > .content { padding-bottom: 12px; }
-.content { flex: 1 1 0; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.content { flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
 
 /* Top bar */
 .topbar { display: flex; align-items: center; gap: 10px; padding: calc(var(--sat) + 12px) 16px 12px; min-height: 56px; z-index: 10; background: var(--bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
@@ -190,7 +190,7 @@ body::before {
 
 .row-body,
 .nav-body { flex: 1; min-width: 0; }
-.list { display: flex; flex-direction: column; padding: 0 16px; }
+.list { display: flex; flex-direction: column; padding: 0 16px; overflow-x: hidden; }
 .row-title,
 .nav-title { font-weight: 500; font-size: 14.5px; line-height: 1.3; color: var(--text); }
 .row-sub,
@@ -239,7 +239,7 @@ body::before {
 .conn-dot.direct { background: var(--fade); }
 .conn-dot.err { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
 
-.msg-list { flex: 1; overflow-y: auto; padding: 8px 14px 16px; -webkit-overflow-scrolling: touch; }
+.msg-list { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 14px 16px; -webkit-overflow-scrolling: touch; }
 .msg-group { padding: 14px 0; animation: fadeUp .3s var(--ease) both; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } }
 
