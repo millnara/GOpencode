@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { checkPin, setPin, hasPin, clearPin } from "../lib/settings";
+import { checkPin, setPin, hasPin, clearPin, setUnlockTs } from "../lib/settings";
 
 export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   const [pin, setPinEntry] = useState("");
@@ -22,11 +22,12 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       }
       if (pin !== confirm) { setError("PINs don't match"); setPinEntry(""); setSetup(false); return; }
       await setPin(pin);
+      await setUnlockTs();
       setError(""); onUnlock();
       return;
     }
     const ok = await checkPin(pin);
-    if (ok) { setError(""); onUnlock(); }
+    if (ok) { await setUnlockTs(); setError(""); onUnlock(); }
     else { setError("Wrong PIN"); setPinEntry(""); }
   };
 

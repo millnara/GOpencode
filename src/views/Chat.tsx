@@ -82,16 +82,17 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   const loadEarlier = () => {
-    prevScrollHeight.current = contentRef.current?.scrollHeight ?? null;
+    const c = contentRef.current;
+    prevScrollHeight.current = c ? c.scrollHeight - c.scrollTop : null;
     setVisibleCount((v) => v + 100);
   };
-  // Keep the viewport anchored on the same message after older ones render above it.
   useLayoutEffect(() => {
-    if (prevScrollHeight.current != null) {
-      const c = contentRef.current;
-      if (c) c.scrollTop += c.scrollHeight - prevScrollHeight.current;
-      prevScrollHeight.current = null;
+    if (prevScrollHeight.current == null) return;
+    const c = contentRef.current;
+    if (c) {
+      c.scrollTop = c.scrollHeight - prevScrollHeight.current - 1;
     }
+    prevScrollHeight.current = null;
   }, [visibleCount]);
 
   const ensure = (messageID: string): Group => {

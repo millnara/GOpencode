@@ -3,6 +3,23 @@ const FENCE = /```(\w*)\n?([\s\S]*?)```/g;
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+
+function highlight(code: string): string {
+  if (code.length > 8000) return esc(code); // skip huge blocks
+  const keywords = /\b(import|export|from|const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|try|catch|throw|new|class|extends|interface|type|enum|async|await|yield|default|static|public|private|protected|readonly|true|false|null|undefined|this|super|in|of|typeof|instanceof|void|delete)\b/g;
+  const strings = /(["'`])(?:(?!\1)[^\\]|\\.)*\1/g;
+  const comments = /\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
+  const numbers = /\b\d+\.?\d*(?:[eE][+-]?\d+)?\b/g;
+  const props = /\b([\w]+)(?=\s*[:=])/g;
+  
+  let out = esc(code);
+  out = out.replace(comments, '<span class="syn-c">$&</span>');
+  out = out.replace(strings, '<span class="syn-s">$&</span>');
+  out = out.replace(/&lt;span class="syn-[cs]"[^>]*&gt;(.*?)&lt;\/span&gt;/g, '<span class="syn-c">$1</span>'); // fix escaped spans inside strings
+  out = out.replace(keywords, '<span class="syn-k">$&</span>');
+  out = out.replace(numbers, '<span class="syn-n">$&</span>');
+  return out;
+}
 function inline(s: string): string {
   s = s.replace(/`([^`]+)`/g, (_m, c) => "<code>" + c + "</code>");
   s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -15,7 +32,7 @@ export function md(src: string): string {
   if (!src) return "";
   const blocks: string[] = [];
   src = src.replace(FENCE, (_m, _lang, code) => {
-    blocks.push("<pre><code>" + esc(String(code).replace(/\n$/, "")) + "</code></pre>");
+    blocks.push("<pre><code>" + highlight(String(code).replace(/\n$/, "")) + "</code></pre>");
     return "@@CB" + (blocks.length - 1) + "@@";
   });
   src = esc(src);

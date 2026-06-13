@@ -195,3 +195,16 @@ export async function hasPin(): Promise<boolean> {
 export async function clearPin(): Promise<void> {
   try { await Preferences.remove({ key: PIN_KEY }); } catch { /* */ }
 }
+
+const UNLOCK_TS_KEY = "gopencode.unlockTs";
+export async function setUnlockTs(): Promise<void> {
+  try { await Preferences.set({ key: UNLOCK_TS_KEY, value: String(Date.now()) }); } catch { /* */ }
+}
+export async function isGraceActive(): Promise<boolean> {
+  try {
+    const { value } = await Preferences.get({ key: UNLOCK_TS_KEY });
+    if (!value) return false;
+    const ts = parseInt(value, 10);
+    return Date.now() - ts < 5 * 60 * 1000; // 5 minute grace period
+  } catch { return false; }
+}

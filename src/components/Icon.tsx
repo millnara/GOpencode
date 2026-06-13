@@ -9,7 +9,7 @@ type IconName =
   | "bell" | "volume" | "shield" | "external" | "doc" | "folderOpen"
   | "sparkle" | "power" | "share" | "save" | "refresh" | "moon" | "sun"
   | "arrowUp" | "arrowDown" | "chevronDown" | "chevronRight" | "chevronUp"
-  | "dot" | "terminal";
+  | "dot" | "terminal" | "copy";
 
 type Props = {
   name: IconName;
@@ -75,6 +75,7 @@ const paths: Record<IconName, string> = {
   chevronUp: '<path d="M6 15l6-6 6 6"/>',
   dot: '<circle cx="12" cy="12" r="3"/>',
   terminal: '<path d="M4 7l5 5-5 5V7z M14 17h6"/>',
+  copy: '<rect x="9" y="3" width="10" height="14" rx="2"/><path d="M5 7v14h10"/><path d="M5 5h2v-1a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1v2h3"/>',
 };
 
 export default function Icon({ name, size = 22, strokeWidth = 1.8, style, className, fill = "none" }: Props) {

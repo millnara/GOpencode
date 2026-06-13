@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Projects from "./views/Projects";
 import Sessions from "./views/Sessions";
 import Chat from "./views/Chat";
@@ -9,7 +9,7 @@ import LockScreen from "./components/LockScreen";
 import Logo from "./components/Logo";
 import Icon from "./components/Icon";
 import { b64uDec } from "./lib/util";
-import { saveLastRoute, loadLastRoute, isConfigured, loadPairing, hasPin, loadPhrases } from "./lib/settings";
+import { saveLastRoute, loadLastRoute, isConfigured, loadPairing, hasPin, loadPhrases, isGraceActive } from "./lib/settings";
 import { connect, onStateChange, getState, reconnectNow, onAppUpdate, type TransportState } from "./lib/transport";
 import { log } from "./lib/log";
 import { getStoredHash, pullUpdate } from "./lib/updater";
@@ -70,6 +70,7 @@ export default function App() {
   const [pinEnabled, setPinEnabled] = useState(false);
   const [paired, setPaired] = useState(false);
   const [transport, setTransport] = useState<TransportState>(getState());
+  const lockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pairingUrls, setPairingUrls] = useState<string[]>([]);
 
   useEffect(() => {
@@ -94,7 +95,12 @@ export default function App() {
 
     const onVis = () => {
       if (document.visibilityState === "hidden" && pinEnabled && paired) {
-        setLocked(true);
+        if (lockTimeoutRef.current) clearTimeout(lockTimeoutRef.current);
+        lockTimeoutRef.current = setTimeout(async () => {
+          if (!(await isGraceActive())) setLocked(true);
+        }, 2000); // 2s delay — don't lock on quick app switches
+      } else if (document.visibilityState === "visible") {
+        if (lockTimeoutRef.current) { clearTimeout(lockTimeoutRef.current); lockTimeoutRef.current = null; }
       }
     };
     document.addEventListener("visibilitychange", onVis);

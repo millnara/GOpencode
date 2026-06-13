@@ -239,7 +239,7 @@ body::before {
 .conn-dot.direct { background: var(--fade); }
 .conn-dot.err { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
 
-.msg-list { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 14px 16px; -webkit-overflow-scrolling: touch; }
+.msg-list { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 14px 16px; -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
 .msg-group { padding: 14px 0; animation: fadeUp .3s var(--ease) both; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } }
 
@@ -576,6 +576,9 @@ body::before {
 .revert-btn { font-size: 13px; color: var(--fade); padding: 4px 6px; border-radius: 8px; opacity: 0; transition: all .15s ease; }
 .msg-row.user:hover .revert-btn, .msg-row.user:active .revert-btn { opacity: 1; }
 .revert-btn:active { color: var(--warn); background: var(--surface); }
+.copy-btn { color: var(--muted); padding: 4px 6px; border-radius: 8px; opacity: 0; transition: all .15s ease; display: flex; align-items: center; }
+.msg-row.assistant:hover .copy-btn, .msg-row.assistant:active .copy-btn { opacity: 1; }
+.copy-btn:active { color: var(--accent-2); background: var(--surface); }
 
 /* Advanced */
 .pill-active { background: var(--accent); border-color: var(--accent); color: hsl(48 50% 96%); }

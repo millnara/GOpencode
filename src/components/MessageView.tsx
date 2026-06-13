@@ -1,6 +1,8 @@
+import { useState } from "react";
 import PartView from "./PartView";
 import type { Message, Part } from "../lib/types";
 import { Mark } from "./Logo";
+import Icon from "./Icon";
 
 export interface Group { info: Message; parts: Part[]; }
 
@@ -13,6 +15,12 @@ function fmtTime(ms?: number): string {
 export default function MessageView({ group, onRevert }: { group: Group; onRevert?: (id: string) => void }) {
   const role = group.info.role;
   const err = (group.info as any).error;
+  const [copied, setCopied] = useState(false);
+  const copyText = () => {
+    const text = group.parts.filter(p => p.type === "text" && !((p as any).synthetic)).map(p => (p as any).text).join("\n");
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }).catch(() => {});
+  };
   return (
     <div className={"msg-row " + role}>
       {role === "assistant" && <div className="msg-avatar assistant" style={{ overflow: "hidden" }}><Mark size={28} /></div>}
@@ -26,6 +34,11 @@ export default function MessageView({ group, onRevert }: { group: Group; onRever
           </div>
           {role === "user" && onRevert && (
             <button className="revert-btn" onClick={() => onRevert(group.info.id)}>↩</button>
+          )}
+          {role === "assistant" && group.parts.some(p => p.type === "text" && (p as any).text) && (
+            <button className="copy-btn" onClick={copyText} aria-label="Copy message">
+              {copied ? <Icon name="check" size={14} strokeWidth={2.5} /> : <Icon name="copy" size={14} strokeWidth={2} />}
+            </button>
           )}
         </div>
         <div className="msg-time">

@@ -3,6 +3,7 @@ import { md } from "../lib/markdown";
 import { api } from "../lib/api";
 import type { Part, ToolPart, PatchPart } from "../lib/types";
 import { getConn } from "../lib/settings";
+import ImageViewer from "./ImageViewer";
 
 function toolTitle(tool: string, input: Record<string, any> = {}): string {
   const v = (k: string) => input[k];
@@ -109,6 +110,7 @@ function PatchDiff({ part }: { part: PatchPart }) {
 
 export default function PartView({ part, role }: { part: Part; role: string }) {
   const p = part as any;
+  const [viewerSrc, setViewerSrc] = useState<string | null>(null);
   switch (part.type) {
     case "text": {
       if (p.synthetic || p.ignored) return null;
@@ -127,7 +129,14 @@ export default function PartView({ part, role }: { part: Part; role: string }) {
       );
     }
     case "tool": return <ToolView part={part as ToolPart} />;
-    case "file": return <div className="pill" style={{ margin: "6px 0" }}>📎 {p.filename || p.url || "file"}</div>;
+    case "file": return (
+        <>
+          <div className="pill" style={{ margin: "6px 0", cursor: "pointer" }} onClick={() => { if (p.url) setViewerSrc(p.url); }}>
+            📎 {p.filename || p.url || "file"}
+          </div>
+          {viewerSrc && <ImageViewer src={viewerSrc} onClose={() => setViewerSrc(null)} />}
+        </>
+      );
     case "patch": return <PatchDiff part={p as PatchPart} />;
     case "agent": return <div className="role">→ agent: {p.name}</div>;
     case "subtask": return (
