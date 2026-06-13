@@ -12,6 +12,7 @@ import { b64uDec } from "./lib/util";
 import { saveLastRoute, loadLastRoute, isConfigured, loadPairing, hasPin, loadPhrases } from "./lib/settings";
 import { connect, onStateChange, getState, reconnectNow, type TransportState } from "./lib/transport";
 import { log } from "./lib/log";
+import ToastContainer from "./components/Toast";
 
 log.enablePersistence("oc_log");
 
@@ -174,6 +175,7 @@ export default function App() {
       ) : (
         <div className="screen">{view}</div>
       )}
+      <ToastContainer />
       {locked && <LockScreen onUnlock={() => setLocked(false)} />}
     </>
   );

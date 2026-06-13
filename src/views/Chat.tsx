@@ -17,6 +17,7 @@ import { t } from "../lib/i18n";
 import { b64uEnc } from "../lib/util";
 import { Mark } from "../components/Logo";
 import { log, friendlyError } from "../lib/log";
+import { showToast } from "../components/Toast";
 
 async function haptic(light = true) {
   try {
@@ -336,17 +337,17 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         try { await api.runCommand(dir, sid, cmdName, cmdArgs); } catch (e: any) {
           if (/Failed to fetch|NetworkError|aborted/i.test(e.message)) {
             log.warn("chat", "connection blip on command send", e?.message || e);
-            ensure("net_warn_" + Date.now()).parts.push({ id: "w", type: "text", text: "⚠ Connection blip — reply will appear on reconnect" } as any); force();
+            showToast("Connection blip — reply will appear on reconnect");
           } else { throw e; }
         }
       } else {
         const ok = await api.promptAsync(dir, sid, model, agent, text, variant, sysPrompt || null, files.length ? files : null, formatMode, toolsDisabled);
         if (!ok) {
           log.warn("chat", "promptAsync returned false — connection blip");
-          ensure("net_warn_" + Date.now()).parts.push({ id: "w", type: "text", text: "⚠ Connection blip — reply will appear on reconnect" } as any); force();
+          showToast("Connection blip — reply will appear on reconnect");
         }
       }
-    } catch (e: any) { log.error("chat", "send failed", e?.message || e); ensure("send_err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Send failed: " + friendlyError(e) } as any); force(); }
+    } catch (e: any) { log.error("chat", "send failed", e?.message || e); showToast("Send failed: " + friendlyError(e), "error"); }
   };
   const abort = async () => { try { await api.abort(dir, sid); } catch { /* */ } setBusy(false); };
   const respond = async (id: string, r: "once" | "always" | "reject") => {
