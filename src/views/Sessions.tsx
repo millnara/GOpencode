@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
-import type { Session } from "../lib/types";
+import { api, streamEvents } from "../lib/api";
+import type { Session, OcEvent } from "../lib/types";
 import { b64uEnc, leaf, timeAgo } from "../lib/util";
 import { t } from "../lib/i18n";
 import { log, friendlyError } from "../lib/log";
@@ -8,16 +8,59 @@ import PullToRefresh from "../components/PullToRefresh";
 import { prompt as modalPrompt, confirm as modalConfirm } from "../components/Modal";
 import Icon from "../components/Icon";
 
+function extractPreview(parts: any[]): string {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    if (p.type === "text" && p.text) {
+      const line = p.text.split("\n").find((l: string) => l.trim()) || p.text;
+      return line.trim().slice(0, 100);
+    }
+  }
+  return "";
+}
+
 export default function Sessions({ dir }: { dir: string }) {
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
   const name = leaf(dir);
 
   const load = () => api.sessions(dir)
-    .then(ss => setSessions(ss.filter(s => !s.parentID).sort((a, b) => (b.time?.updated || 0) - (a.time?.updated || 0))))
+    .then(ss => {
+      const filtered = ss.filter(s => !s.parentID).sort((a, b) => (b.time?.updated || 0) - (a.time?.updated || 0));
+      setSessions(filtered);
+      // fetch last message preview for each session in parallel
+      filtered.slice(0, 20).forEach(s => {
+        api.messages(dir, s.id).then(msgs => {
+          if (!msgs.length) return;
+          const last = msgs[msgs.length - 1];
+          const text = extractPreview(last.parts || []);
+          if (text) setPreviews(prev => ({ ...prev, [s.id]: text }));
+        }).catch(() => {});
+      });
+    })
     .catch(e => { log.error("ui", "load sessions failed", e?.message || e); setErr(friendlyError(e)); });
   useEffect(() => { load(); }, [dir]);
+
+  useEffect(() => {
+    const stop = streamEvents(dir, (ev: OcEvent) => {
+      const p = ev.properties;
+      if (ev.type === "session.status") {
+        const isBusy = p.status?.type === "busy";
+        setBusy(prev => {
+          if (prev[p.sessionID] === isBusy) return prev;
+          return { ...prev, [p.sessionID]: isBusy };
+        });
+      }
+      if (ev.type === "session.updated" && p?.info?.id) {
+        // refresh preview if a session got a new title
+        load();
+      }
+    });
+    return () => { stop(); };
+  }, [dir]);
 
   const create = async () => {
     try { const s = await api.createSession(dir); location.hash = "#/p/" + b64uEnc(dir) + "/s/" + s.id; }
@@ -56,11 +99,15 @@ export default function Sessions({ dir }: { dir: string }) {
             {filtered.map((s, i) => (
               <div key={s.id}>
                 {i > 0 && <div className="divider" />}
-                <div style={{ display: "flex", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "flex-start" }}>
                   <button className="row" style={{ flex: 1 }} onClick={() => (location.hash = "#/p/" + b64uEnc(dir) + "/s/" + s.id)}>
                     <div className="row-icon" style={{ background: "var(--accent)" }}><Icon name="doc" size={18} strokeWidth={1.8} /></div>
                     <div className="row-body">
-                      <div className="row-title">{s.title || "Untitled session"}</div>
+                      <div className="row-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span>{s.title || "Untitled session"}</span>
+                        {busy[s.id] && <span className="active-dot" />}
+                      </div>
+                      {previews[s.id] && <div className="row-preview">{previews[s.id]}</div>}
                       <div className="row-sub">{timeAgo(s.time?.updated || s.time?.created)}</div>
                     </div>
                     <div className="row-chev">›</div>
