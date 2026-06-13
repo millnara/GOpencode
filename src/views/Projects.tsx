@@ -3,19 +3,26 @@ import { api } from "../lib/api";
 import type { Project } from "../lib/types";
 import { b64uEnc, leaf, timeAgo, hashColor } from "../lib/util";
 import { isConfigured } from "../lib/settings";
+import { isConnected, onStateChange } from "../lib/transport";
 import { t } from "../lib/i18n";
 import Icon from "../components/Icon";
 import Logo from "../components/Logo";
+import { log, friendlyError } from "../lib/log";
 
 export default function Projects() {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [q, setQ] = useState("");
   const [err, setErr] = useState<string | null>(null);
-  const needsSetup = !isConfigured();
+  const [connected, setConnected] = useState(isConnected());
+  const needsSetup = !isConfigured() && !connected;
+
+  useEffect(() => onStateChange(() => setConnected(isConnected())), []);
 
   useEffect(() => {
     if (needsSetup) { setProjects([]); return; }
-    api.projects().then(setProjects).catch(e => setErr(String(e.message || e)));
+    setProjects(null);
+    setErr(null);
+    api.projects().then(setProjects).catch(e => { log.error("ui", "load projects failed", e?.message || e); setErr(friendlyError(e)); });
   }, [needsSetup]);
 
   const filtered = (projects || []).filter(p => {

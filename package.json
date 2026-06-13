@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "cap:sync": "npm run build && cap sync",
     "cap:android": "npm run build && cap sync && cap open android",
-    "desktop:build": "cd desktop && go build -ldflags=\"-s -w\" -o gopencode.exe .",
+    "desktop:build": "cd desktop && go build -ldflags=\"-s -w -H windowsgui\" -o gopencode.exe .",
     "desktop:installer": "cd desktop && build.bat"
   },
   "dependencies": {

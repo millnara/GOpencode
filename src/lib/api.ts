@@ -1,5 +1,6 @@
 import { getConn } from "./settings";
-import { isConnected, request as wsRequest, subscribeSSE } from "./transport";
+import { isConnected, request as wsRequest, subscribeSSE, getCurrentUrls } from "./transport";
+import { log } from "./log";
 import type {
   Project, Session, MessageWithParts, ProvidersResponse, Agent, OcEvent, ModelRef,
   ConfigProvidersResponse, Command, FileEntry, PathResponse,
@@ -23,9 +24,17 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
       try { body = JSON.parse(opts.body as string); } catch { body = undefined; }
     }
     const r = await wsRequest(method, path, body);
-    if (r.status >= 400) throw new Error(`HTTP ${r.status}`);
+    if (r.status >= 400) {
+      const err = new Error(`HTTP ${r.status}`);
+      log.error("api", `${method} ${path} → ${r.status}`);
+      throw err;
+    }
     return r.body as T;
   }
+
+  // If we have a saved pairing but aren't connected, don't fall through
+  // to direct HTTP with stale settings — the gateway needs reconnection.
+  if (getCurrentUrls().length) throw new Error("reconnect needed");
 
   const r = await fetch(url(path), {
     ...opts,
@@ -33,7 +42,9 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   });
   if (!r.ok) {
     const t = await r.text().catch(() => "");
-    throw new Error(`HTTP ${r.status}${t ? ": " + t.slice(0, 200) : ""}`);
+    const err = new Error(`HTTP ${r.status}${t ? ": " + t.slice(0, 200) : ""}`);
+    log.error("api", `${opts.method || "GET"} ${path} → HTTP ${r.status}`, t.slice(0, 200));
+    throw err;
   }
   const t = await r.text();
   return (t ? JSON.parse(t) : null) as T;
@@ -67,7 +78,8 @@ export const api = {
     }),
   promptAsync: async (dir: string, id: string, model: ModelRef, agent: string, text: string, variant?: string | null, system?: string | null, files?: { name: string; mime: string; dataUrl: string }[] | null, formatType?: string | null, toolsDisabled?: boolean) => {
     try {
-      const parts: any[] = [{ type: "text", text }];
+      const parts: any[] = [];
+      if (text || !files?.length) parts.push({ type: "text", text });
       if (files) {
         for (const f of files) {
           parts.push({ type: "file", filename: f.name, mime: f.mime, url: f.dataUrl });
@@ -133,7 +145,10 @@ export function defaultModel(prov: ProvidersResponse | null): ModelRef | null {
 }
 
 export function streamEvents(dir: string, onEvent: (ev: OcEvent) => void): () => void {
-  if (isConnected()) {
+  // Gateway mode (connected OR a pairing exists): subscribe through the transport.
+  // It records the subscription and arms it on (re)connect, so a momentary drop no
+  // longer kills the stream — the consumer never has to re-subscribe itself.
+  if (isConnected() || getCurrentUrls().length) {
     return subscribeSSE("/event", dir, onEvent);
   }
 
@@ -163,8 +178,11 @@ export function streamEvents(dir: string, onEvent: (ev: OcEvent) => void): () =>
           }
         }
       }
-    } catch {
-      if (!stopped) setTimeout(() => { if (!stopped) run(); }, 3000);
+    } catch (e: any) {
+      if (!stopped) {
+        log.warn("api", "SSE stream error, retrying in 3s", e?.message || e);
+        setTimeout(() => { if (!stopped) run(); }, 3000);
+      }
     }
   };
   run();

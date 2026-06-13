@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -23,11 +22,27 @@ type Gateway struct {
 	auth      string
 	server    *http.Server
 	mu        sync.Mutex
-	phone     *websocket.Conn
+	phone     *phoneConn
 	status    string
 	webrtc    *WebRTCTransport
 	lastEvent time.Time
 	done      chan struct{}
+}
+
+// phoneConn serializes writes to one phone socket. gorilla/websocket supports
+// only one concurrent writer; SSE pumps, proxied responses, pongs and relocate
+// pushes all write from separate goroutines. The mutex is per-connection and
+// every write carries a deadline, so one dead peer can never wedge the rest.
+type phoneConn struct {
+	conn *websocket.Conn
+	mu   sync.Mutex
+}
+
+func (p *phoneConn) writeJSON(v interface{}) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+	return p.conn.WriteJSON(v)
 }
 
 var upgrader = websocket.Upgrader{
@@ -35,15 +50,32 @@ var upgrader = websocket.Upgrader{
 }
 
 func NewGateway(cfg Config) *Gateway {
-	room := make([]byte, 8)
-	rand.Read(room)
-	pw := make([]byte, 12)
-	rand.Read(pw)
+	room := []byte(cfg.Room)
+	if len(room) == 0 {
+		room = make([]byte, 8)
+		rand.Read(room)
+	}
+	rawPw := cfg.Pw
+	if rawPw == "" {
+		pwBytes := make([]byte, 12)
+		rand.Read(pwBytes)
+		rawPw = base64.RawURLEncoding.EncodeToString(pwBytes)
+	}
+	// Persist credentials so the phone can reconnect without re-scanning
+	if cfg.Room == "" || cfg.Pw == "" {
+		cfg.Room = hex.EncodeToString(room)
+		cfg.Pw = rawPw
+		if err := saveConfig(cfg); err != nil {
+			logf("ERROR saving persisted credentials: %v", err)
+		} else {
+			logf("credentials persisted room=%s", cfg.Room)
+		}
+	}
 	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(cfg.Username+":"+cfg.Password))
 	return &Gateway{
 		cfg:       cfg,
 		room:      hex.EncodeToString(room),
-		pw:        base64.RawURLEncoding.EncodeToString(pw),
+		pw:        rawPw,
 		auth:      auth,
 		lastEvent: time.Now(),
 		done:      make(chan struct{}),
@@ -119,18 +151,60 @@ func (g *Gateway) PushRelocate(publicIP4, publicIP6 string) {
 		"type":      "relocate",
 		"endpoints": endpoints,
 	}
-	if err := conn.WriteJSON(msg); err != nil {
-		log.Printf("relocate: write failed: %v", err)
+	if err := conn.writeJSON(msg); err != nil {
+		logf("relocate: write failed: %v", err)
 	} else {
-		log.Printf("relocate: pushed %d endpoints (ipv4=%s, ipv6=%s)", len(endpoints), publicIP4, publicIP6)
+		logf("relocate: pushed %d endpoints (ipv4=%s, ipv6=%s)", len(endpoints), publicIP4, publicIP6)
 	}
 }
 
 func (g *Gateway) Status() string { return g.status }
 
+// phraseSet returns the current working-indicator set under lock.
+func (g *Gateway) phraseSet() map[string]interface{} {
+	g.mu.Lock()
+	name := g.cfg.PhrasesName
+	phrases := append([]string(nil), g.cfg.Phrases...)
+	g.mu.Unlock()
+	return map[string]interface{}{"name": name, "phrases": phrases}
+}
+
+// sendPhrases pushes the current phrase set to one phone connection (used right
+// after auth so the phone adopts the desktop's set on connect).
+func (g *Gateway) sendPhrases(pc *phoneConn) {
+	g.mu.Lock()
+	empty := len(g.cfg.Phrases) == 0
+	g.mu.Unlock()
+	if empty {
+		return
+	}
+	if err := pc.writeJSON(map[string]interface{}{"type": "phrases", "set": g.phraseSet()}); err != nil {
+		logf("phrases: send failed: %v", err)
+	}
+}
+
+// SetPhrases updates the active set and pushes it to the connected phone.
+func (g *Gateway) SetPhrases(name string, phrases []string) {
+	g.mu.Lock()
+	g.cfg.PhrasesName = name
+	g.cfg.Phrases = phrases
+	conn := g.phone
+	g.mu.Unlock()
+	if conn != nil {
+		if err := conn.writeJSON(map[string]interface{}{"type": "phrases", "set": g.phraseSet()}); err != nil {
+			logf("phrases: push failed: %v", err)
+		} else {
+			logf("phrases: pushed %d to phone", len(phrases))
+		}
+	}
+}
+
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	if r.Method == "OPTIONS" { w.WriteHeader(200); return }
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(200)
+		return
+	}
 
 	if r.URL.Path == "/pairing" {
 		w.Header().Set("Content-Type", "application/json")
@@ -154,56 +228,70 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil { return }
+	if err != nil {
+		logf("ws: upgrade failed: %v", err)
+		return
+	}
+	logf("ws: new connection from %s", r.RemoteAddr)
+
+	conn.SetReadLimit(10 << 20) // 10 MB — allow image payloads
+	pc := &phoneConn{conn: conn}
+
+	// The phone pings every ~10s when idle (see transport.ts keepalive). Without
+	// a read deadline a half-open socket (Android backgrounding, Wi-Fi↔cellular
+	// handoff, IP change) leaves ReadMessage blocked forever, so the defer never
+	// runs and status stays "paired" while the phone has long since given up and
+	// is failing to reconnect. 90s matches the phone's body-upload budget so a
+	// slow image upload (one large frame) doesn't trip the deadline mid-transfer.
+	const readDeadline = 90 * time.Second
+	conn.SetReadDeadline(time.Now().Add(readDeadline))
 
 	authed := false
 	subscriptions := make(map[float64]chan struct{})
 
 	defer func() {
-		for _, ch := range subscriptions { close(ch) }
+		for _, ch := range subscriptions {
+			close(ch)
+		}
 		g.mu.Lock()
-		if g.phone == conn { g.phone = nil; g.status = "idle" }
+		if g.phone == pc {
+			g.phone = nil
+			g.status = "idle"
+		}
 		g.mu.Unlock()
 		conn.Close()
 	}()
 
 	for {
 		_, raw, err := conn.ReadMessage()
-		if err != nil { return }
+		if err != nil {
+			logf("ws: read ended for %s: %v", r.RemoteAddr, err)
+			return
+		}
+		conn.SetReadDeadline(time.Now().Add(readDeadline))
 
 		var msg map[string]interface{}
-		if err := json.Unmarshal(raw, &msg); err != nil { continue }
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			logf("ws: bad JSON (%d bytes): %v", len(raw), err)
+			continue
+		}
 
 		if !authed {
 			if msg["type"] == "auth" && msg["room"] == g.room && msg["pw"] == g.pw {
 				authed = true
+				logf("ws: auth SUCCESS room=%s", msg["room"])
 				g.mu.Lock()
-				g.phone = conn
+				g.phone = pc
 				g.status = "paired"
 				g.mu.Unlock()
 				id, _ := msg["id"].(float64)
-				conn.WriteJSON(map[string]interface{}{"id": id, "type": "authed"})
-
-				wr := NewWebRTCTransport(func(data []byte) {
-					conn.WriteMessage(websocket.TextMessage, data)
-				})
-				g.mu.Lock()
-				g.webrtc = wr
-				g.mu.Unlock()
-				offer, err := wr.CreateOffer(
-					func(sdp string) error {
-						return conn.WriteJSON(map[string]interface{}{"type": "webrtc-offer", "sdp": sdp})
-					},
-					func(candidate string) error {
-						return conn.WriteJSON(map[string]interface{}{"type": "webrtc-candidate", "candidate": candidate})
-					},
-				)
-				if err == nil && offer != "" {
-					conn.WriteJSON(map[string]interface{}{"type": "webrtc-offer", "sdp": offer})
-				}
+				pc.writeJSON(map[string]interface{}{"id": id, "type": "authed"})
+				logf("ws: sent authed (WebSocket-only, no WebRTC)")
+				g.sendPhrases(pc)
 			} else {
+				logf("ws: auth FAILED room_matches=%v pw_matches=%v", msg["room"] == g.room, msg["pw"] == g.pw)
 				id, _ := msg["id"].(float64)
-				conn.WriteJSON(map[string]interface{}{"id": id, "error": "auth failed"})
+				pc.writeJSON(map[string]interface{}{"id": id, "error": "auth failed"})
 			}
 			continue
 		}
@@ -218,7 +306,7 @@ func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			g.mu.Unlock()
 			if wr != nil && sdp != "" {
 				if err := wr.SetRemoteDescription(sdp); err != nil {
-					log.Printf("webrtc: set remote desc error: %v", err)
+					logf("webrtc: set remote desc error: %v", err)
 				}
 			}
 			continue
@@ -236,36 +324,42 @@ func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if msgType == "ping" {
-			conn.WriteJSON(map[string]interface{}{"type": "pong"})
+			pc.writeJSON(map[string]interface{}{"type": "pong"})
 			continue
 		}
 
 		if msgType == "sse-start" {
 			stop := make(chan struct{})
 			subscriptions[id] = stop
-			go g.streamSSE(conn, id, msg, stop)
+			go g.streamSSE(pc, id, msg, stop)
 			continue
 		}
 
 		if msgType == "sse-stop" {
-			if ch, ok := subscriptions[id]; ok { close(ch); delete(subscriptions, id) }
+			if ch, ok := subscriptions[id]; ok {
+				close(ch)
+				delete(subscriptions, id)
+			}
 			continue
 		}
 
-		go g.proxyRequest(conn, id, msg)
+		go g.proxyRequest(pc, id, msg)
 	}
 }
 
-func (g *Gateway) proxyRequest(conn *websocket.Conn, id float64, msg map[string]interface{}) {
+func (g *Gateway) proxyRequest(conn *phoneConn, id float64, msg map[string]interface{}) {
 	method, _ := msg["method"].(string)
-	if method == "" { method = "GET" }
+	if method == "" {
+		method = "GET"
+	}
 	path, _ := msg["path"].(string)
 	body, _ := json.Marshal(msg["body"])
 
 	url := g.cfg.OcURL + path
+	logf("proxy: %s %s", method, url)
 	req, err := http.NewRequest(method, url, strings.NewReader(string(body)))
 	if err != nil {
-		conn.WriteJSON(map[string]interface{}{"id": id, "status": 0, "error": err.Error()})
+		conn.writeJSON(map[string]interface{}{"id": id, "status": 0, "error": err.Error()})
 		return
 	}
 	req.Header.Set("Authorization", g.auth)
@@ -274,10 +368,12 @@ func (g *Gateway) proxyRequest(conn *websocket.Conn, id float64, msg map[string]
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		conn.WriteJSON(map[string]interface{}{"id": id, "status": 0, "error": err.Error()})
+		logf("proxy: %s %s -> error: %v", method, url, err)
+		conn.writeJSON(map[string]interface{}{"id": id, "status": 0, "error": err.Error()})
 		return
 	}
 	defer resp.Body.Close()
+	logf("proxy: %s %s -> %d", method, url, resp.StatusCode)
 
 	respBody, _ := io.ReadAll(resp.Body)
 	headers := make(map[string]string)
@@ -290,26 +386,32 @@ func (g *Gateway) proxyRequest(conn *websocket.Conn, id float64, msg map[string]
 		parsed = string(respBody)
 	}
 
-	conn.WriteJSON(map[string]interface{}{
+	conn.writeJSON(map[string]interface{}{
 		"id": id, "status": resp.StatusCode,
 		"body": parsed, "headers": headers,
 	})
 }
 
-func (g *Gateway) streamSSE(conn *websocket.Conn, id float64, msg map[string]interface{}, stop chan struct{}) {
+func (g *Gateway) streamSSE(conn *phoneConn, id float64, msg map[string]interface{}, stop chan struct{}) {
 	path, _ := msg["path"].(string)
 	dir, _ := msg["directory"].(string)
-	if path == "" { path = "/event" }
+	if path == "" {
+		path = "/event"
+	}
 
 	url := g.cfg.OcURL + path
 	if dir != "" {
-		if strings.Contains(path, "?") { url += "&" } else { url += "?" }
+		if strings.Contains(path, "?") {
+			url += "&"
+		} else {
+			url += "?"
+		}
 		url += "directory=" + dir
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		conn.WriteJSON(map[string]interface{}{"id": id, "type": "sse-error", "error": err.Error()})
+		conn.writeJSON(map[string]interface{}{"id": id, "type": "sse-error", "error": err.Error()})
 		return
 	}
 	req.Header.Set("Authorization", g.auth)
@@ -318,7 +420,7 @@ func (g *Gateway) streamSSE(conn *websocket.Conn, id float64, msg map[string]int
 	client := &http.Client{Timeout: 0}
 	resp, err := client.Do(req)
 	if err != nil {
-		conn.WriteJSON(map[string]interface{}{"id": id, "type": "sse-error", "error": err.Error()})
+		conn.writeJSON(map[string]interface{}{"id": id, "type": "sse-error", "error": err.Error()})
 		return
 	}
 	defer resp.Body.Close()
@@ -343,11 +445,13 @@ func (g *Gateway) streamSSE(conn *websocket.Conn, id float64, msg map[string]int
 				line = strings.TrimSpace(line)
 				if strings.HasPrefix(line, "data:") {
 					data := strings.TrimSpace(line[5:])
-					if data == "" { continue }
+					if data == "" {
+						continue
+					}
 					var event map[string]interface{}
 					if err := json.Unmarshal([]byte(data), &event); err == nil {
 						g.lastEvent = time.Now()
-						conn.WriteJSON(map[string]interface{}{
+						conn.writeJSON(map[string]interface{}{
 							"id": id, "type": "sse-event", "event": event,
 						})
 					}
@@ -356,7 +460,7 @@ func (g *Gateway) streamSSE(conn *websocket.Conn, id float64, msg map[string]int
 		}
 		if rErr != nil {
 			if rErr != io.EOF {
-				conn.WriteJSON(map[string]interface{}{"id": id, "type": "sse-error", "error": rErr.Error()})
+				conn.writeJSON(map[string]interface{}{"id": id, "type": "sse-error", "error": rErr.Error()})
 			}
 			return
 		}
@@ -371,20 +475,17 @@ func (g *Gateway) Start() error {
 	// Detect UPnP / external IP
 	upnp := DetectUPnP(g.cfg.Port)
 	if upnp.available && upnp.externalIP != "" {
-		log.Printf("UPnP detected, external IP: %s", upnp.externalIP)
+		logf("UPnP detected, external IP: %s", upnp.externalIP)
 		g.cfg.Host = upnp.externalIP
 	} else {
-		log.Printf("No external IP detected, using local IP: %s", getLocalIP())
+		logf("No external IP detected, using local IP: %s", getLocalIP())
 	}
 
-	// Bind to external interface if configured
-	bindAddr := "127.0.0.1"
-	if g.cfg.Host != "" && g.cfg.Host != "localhost" {
-		bindAddr = "0.0.0.0"
-		log.Printf("Gateway binding to %s:%d (external access)", bindAddr, g.cfg.Port)
-	} else {
-		log.Printf("Gateway binding to %s:%d (local only)", bindAddr, g.cfg.Port)
-	}
+	// Always bind all interfaces — the phone connects over LAN/Tailscale even
+	// when no public IP is detected. Binding 127.0.0.1 made the gateway
+	// unreachable (reconnect failures) whenever UPnP detection came up empty.
+	bindAddr := "0.0.0.0"
+	logf("Gateway binding to %s:%d", bindAddr, g.cfg.Port)
 
 	g.server = &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", bindAddr, g.cfg.Port),
@@ -394,7 +495,7 @@ func (g *Gateway) Start() error {
 	}
 	go func() {
 		if err := g.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("gateway error: %v", err)
+			logf("gateway error: %v", err)
 			g.status = "error"
 		}
 	}()
@@ -414,15 +515,17 @@ func (g *Gateway) watchdog() {
 			hasPhone := g.phone != nil
 			g.mu.Unlock()
 			if hasPhone && silent > 5*time.Minute {
-				log.Printf("watchdog: no SSE events for %v, checking liveness", silent.Round(time.Second))
+				logf("watchdog: no SSE events for %v, checking liveness", silent.Round(time.Second))
 				resp, err := http.Get(g.cfg.OcURL + "/path")
 				if err != nil || resp == nil || resp.StatusCode >= 500 {
-					log.Printf("watchdog: opencode may be down, status set to error")
+					logf("watchdog: opencode may be down, status set to error")
 					g.mu.Lock()
 					g.status = "error"
 					g.mu.Unlock()
 				}
-				if resp != nil { resp.Body.Close() }
+				if resp != nil {
+					resp.Body.Close()
+				}
 			}
 		case <-g.done:
 			return

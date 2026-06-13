@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
@@ -11,6 +10,10 @@ import (
 )
 
 func main() {
+	initLogging()
+	defer closeLogging()
+	logf("GOpencode gateway starting")
+
 	for _, arg := range os.Args[1:] {
 		switch arg {
 		case "-detect-external-ip", "--detect-external-ip":
@@ -41,21 +44,28 @@ func main() {
 	cfg := loadConfig()
 
 	gw := NewGateway(cfg)
+	// NewGateway may have generated + persisted room/pw credentials into the
+	// config file; reload so our copy carries them. Without this, any later
+	// saveConfig from the tray UI (pairing window, settings) wrote the stale
+	// empty credentials back to disk — orphaning the phone's pairing on the
+	// next restart.
+	cfg = loadConfig()
 	if err := gw.Start(); err != nil {
-		log.Fatalf("gateway failed to start: %v", err)
+		logf("FATAL: gateway failed to start: %v", err)
+		os.Exit(1)
 	}
 
 	onRestart := func(newCfg Config) {
 		gw.Stop()
 		gw = NewGateway(newCfg)
-		cfg = newCfg
+		cfg = loadConfig()
 		if err := gw.Start(); err != nil {
-			log.Printf("restart failed: %v", err)
+			logf("restart failed: %v", err)
 		}
 	}
 
 	ipMon := NewIPMonitor(&cfg, func(newIP4, newIP6 string) {
-		log.Printf("IPMonitor: public IPs changed — pushing relocate (ipv4=%s, ipv6=%s)", newIP4, newIP6)
+		logf("IPMonitor: public IPs changed — pushing relocate (ipv4=%s, ipv6=%s)", newIP4, newIP6)
 		gw.PushRelocate(newIP4, newIP6)
 	})
 	ipMon.Start()

@@ -2,7 +2,6 @@ node_modules
 dist
 .env
 .env.local
-android
 ios
 *.log
 .DS_Store
@@ -10,3 +9,17 @@ ios
 gateway/node_modules
 desktop/gopencode.exe
 desktop/dist
+
+# Android: track the Capacitor project, ignore build outputs + local config
+android/.gradle
+android/build
+android/app/build
+android/app/release
+android/local.properties
+android/.idea
+android/captures
+android/app/src/main/assets/public
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/key.properties
+*.keystore

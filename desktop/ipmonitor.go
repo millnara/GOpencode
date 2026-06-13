@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"sync"
 	"time"
 )
@@ -98,9 +97,9 @@ func (m *IPMonitor) check() {
 
 	if newHost != oldHost {
 		if oldHost != "" {
-			log.Printf("IPMonitor: public IP changed: %s -> %s", oldHost, newHost)
+			logf("IPMonitor: public IP changed: %s -> %s", oldHost, newHost)
 		} else {
-			log.Printf("IPMonitor: detected public IP: %s", newHost)
+			logf("IPMonitor: detected public IP: %s", newHost)
 		}
 		m.cfg.Host = newHost
 		_ = saveConfig(*m.cfg)

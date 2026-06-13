@@ -4,28 +4,29 @@ import Sessions from "./views/Sessions";
 import Chat from "./views/Chat";
 import Settings from "./views/Settings";
 import BrowseFolder from "./views/BrowseFolder";
-import Pairing from "./views/Pairing";
 import BottomNav from "./components/BottomNav";
 import LockScreen from "./components/LockScreen";
 import Logo from "./components/Logo";
 import Icon from "./components/Icon";
 import { b64uDec } from "./lib/util";
-import { saveLastRoute, loadLastRoute, isConfigured, loadPairing, hasPin } from "./lib/settings";
+import { saveLastRoute, loadLastRoute, isConfigured, loadPairing, hasPin, loadPhrases } from "./lib/settings";
 import { connect, onStateChange, getState, reconnectNow, type TransportState } from "./lib/transport";
+import { log } from "./lib/log";
+
+log.enablePersistence("oc_log");
 
 type Route =
   | { name: "projects" }
   | { name: "sessions"; dir: string }
   | { name: "chat"; dir: string; sid: string }
   | { name: "settings" }
-  | { name: "browse"; dir?: string }
-  | { name: "pairing" };
+  | { name: "browse"; dir?: string };
 
 function parse(): Route {
   const hash = location.hash.replace(/^#/, "") || "/";
   const p = hash.split("/").filter(Boolean);
   if (p[0] === "settings") return { name: "settings" };
-  if (p[0] === "pairing") return { name: "pairing" };
+  if (p[0] === "pairing") return { name: "settings" }; // legacy route — pairing now lives in Settings
   if (p[0] === "browse") {
     if (p[1]) {
       try { return { name: "browse", dir: b64uDec(p[1]) }; } catch { /* */ }
@@ -82,7 +83,7 @@ export default function App() {
       const r = parse();
       setRoute(r);
       const hash = location.hash;
-      if (hash && hash !== "#/" && hash !== "#" && r.name !== "settings" && r.name !== "pairing") {
+      if (hash && hash !== "#/" && hash !== "#" && r.name !== "settings") {
         saveLastRoute(hash);
       }
     };
@@ -96,16 +97,25 @@ export default function App() {
     document.addEventListener("visibilitychange", onVis);
 
     (async () => {
+      loadPhrases();
       const pairing = await loadPairing();
       if (pairing && pairing.urls.length > 0) {
         setPaired(true);
         setPairingUrls(pairing.urls);
-        try { await connect(pairing.urls, pairing.room, pairing.pw); } catch { /* */ }
+        // If the saved endpoints are stale on a cold launch, connect() self-heals
+        // once via /pairing; on failure kick the background loop so it keeps
+        // retrying (and re-healing) instead of sitting disconnected until a
+        // foreground/online event nudges it.
+        try { await connect(pairing.urls, pairing.room, pairing.pw); } catch { reconnectNow(); }
       }
       setReady(true);
       if (pinEnabled && (pairing || isConfigured())) setLocked(true);
 
-      if (!location.hash || location.hash === "#/" || location.hash === "#") {
+      const onRoot = !location.hash || location.hash === "#/" || location.hash === "#";
+      const hasConnection = !!pairing || isConfigured();
+      if (onRoot && !hasConnection) {
+        location.hash = "#/settings";
+      } else if (onRoot) {
         loadLastRoute().then((last) => {
           if (last && last !== "#/" && last !== "#" && (isConfigured() || pairing)) {
             location.hash = last;
@@ -133,7 +143,6 @@ export default function App() {
     case "chat": view = <Chat dir={route.dir} sid={route.sid} />; break;
     case "settings": view = <Settings />; break;
     case "browse": view = <BrowseFolder startDir={route.dir} />; break;
-    case "pairing": view = <Pairing onDone={() => { setPaired(true); location.hash = "#/"; }} />; break;
     default: view = <Projects />;
   }
   const showNav = route.name === "projects" || route.name === "settings";
@@ -146,9 +155,9 @@ export default function App() {
         <div className="topbanner stranded">
           <div className="topbanner-ic"><Icon name="warning" size={18} strokeWidth={2} /></div>
           <div className="topbanner-tx">
-            Can't reach your desktop. If you use {tunnelName(pairingUrls)} on this phone, please enable it to continue.
+            Can't reach your desktop — still retrying in the background. If you use {tunnelName(pairingUrls)} on this phone, check it's enabled.
           </div>
-          <button className="topbanner-btn" onClick={() => reconnectNow()}>Retry</button>
+          <button className="topbanner-btn" onClick={() => reconnectNow()}>Retry now</button>
         </div>
       )}
       {transport === "reconnecting" && pairingUrls.length > 0 && !stranded && (

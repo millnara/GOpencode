@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import type { FileEntry } from "../lib/types";
 import { b64uEnc, leaf } from "../lib/util";
 import Icon from "../components/Icon";
+import { log, friendlyError } from "../lib/log";
 
 function parentDir(p: string): string | null {
   const norm = (p || "").replace(/[\\/]+$/, "");
@@ -33,11 +34,11 @@ export default function BrowseFolder({ startDir }: { startDir?: string }) {
 
   useEffect(() => {
     if (!dir) {
-      api.path().then(p => setDir(p.home || "C:\\")).catch(e => setErr(String(e.message || e)));
+      api.path().then(p => setDir(p.home || "C:\\")).catch(e => { log.error("ui", "path load failed", e?.message || e); setErr(friendlyError(e)); });
       return;
     }
     setEntries(null); setErr(null);
-    api.listDir(dir).then(setEntries).catch(e => setErr(String(e.message || e)));
+    api.listDir(dir).then(setEntries).catch(e => { log.error("ui", "listDir failed for " + dir, e?.message || e); setErr(friendlyError(e)); });
   }, [dir]);
 
   const dirs = (entries || [])

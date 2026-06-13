@@ -74,6 +74,52 @@ export async function clearPairing(): Promise<void> {
   try { await Preferences.remove({ key: PAIRING_KEY }); } catch { /* ignore */ }
 }
 
+// ---- Working-indicator phrase sets ----
+// A phrase is one OR more lines: lines are joined with ":" and animate in
+// sequence (linked), stacked. Single-line phrases are self-contained. The
+// indicator picks phrases at random. Sets are authored on desktop and synced to
+// the phone over the gateway (transport handles the "phrases" message), with a
+// baked-in default so the phone always has something to show.
+export interface PhraseSet { name: string; phrases: string[]; }
+export const DEFAULT_PHRASES: PhraseSet = {
+  name: "Default",
+  phrases: [
+    "Calm your knickers, I'm doing it...",
+    "Hope I don't fuck this up...",
+    "Gimme dat...:Gimme dat...:I'm jokin'...",
+  ],
+};
+const PHRASES_KEY = "gopencode.phrases";
+let phrasesCache: PhraseSet = DEFAULT_PHRASES;
+
+export function getPhrases(): PhraseSet { return phrasesCache; }
+export async function loadPhrases(): Promise<PhraseSet> {
+  try {
+    const { value } = await Preferences.get({ key: PHRASES_KEY });
+    if (value) {
+      const p = JSON.parse(value);
+      if (p && Array.isArray(p.phrases) && p.phrases.length) {
+        phrasesCache = { name: typeof p.name === "string" ? p.name : "Set", phrases: p.phrases.filter((x: any) => typeof x === "string") };
+      }
+    }
+  } catch { /* keep default */ }
+  return phrasesCache;
+}
+export async function savePhrases(p: PhraseSet): Promise<void> {
+  const clean: PhraseSet = { name: p.name || "Set", phrases: (p.phrases || []).filter((x) => typeof x === "string" && x.length) };
+  if (!clean.phrases.length) return;
+  phrasesCache = clean;
+  try { await Preferences.set({ key: PHRASES_KEY, value: JSON.stringify(clean) }); } catch { /* ignore */ }
+}
+
+let pairingCache: Pairing | null = null;
+export async function hasSavedPairing(): Promise<boolean> {
+  if (pairingCache !== undefined) return pairingCache !== null;
+  pairingCache = await loadPairing();
+  return pairingCache !== null;
+}
+export function setPairingCache(p: Pairing | null) { pairingCache = p; }
+
 const PIN_KEY = "gopencode.pinHash";
 
 async function sha256(text: string): Promise<string> {

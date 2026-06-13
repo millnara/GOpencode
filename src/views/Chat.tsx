@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { api, streamEvents, defaultModel } from "../lib/api";
 import type { ModelRef, OcEvent, PermissionRequest, ProvidersResponse, Agent, Part, ProviderConfig, Command, QuestionRequest } from "../lib/types";
 import MessageView, { type Group } from "../components/MessageView";
@@ -7,13 +7,16 @@ import ModelSheet from "../components/ModelSheet";
 import CommandMenu from "../components/CommandMenu";
 import QuestionPrompt from "../components/QuestionPrompt";
 import TodoPanel from "../components/TodoPanel";
+import WorkingHorse from "../components/WorkingHorse";
 import Icon from "../components/Icon";
 import { getConn } from "../lib/settings";
-import { isConnected, isP2P } from "../lib/transport";
+import { isConnected, isP2P, onStateChange } from "../lib/transport";
 import { playDone } from "../lib/sound";
 import { notifyDone } from "../lib/notify";
 import { t } from "../lib/i18n";
 import { b64uEnc } from "../lib/util";
+import { Mark } from "../components/Logo";
+import { log, friendlyError } from "../lib/log";
 
 async function haptic(light = true) {
   try {
@@ -35,7 +38,12 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const wasBusy = useRef(false);
   const [, force] = useReducer((x) => x + 1, 0);
   const raf = useRef<number | null>(null);
-  const schedule = () => { if (raf.current == null) raf.current = requestAnimationFrame(() => { raf.current = null; force(); }); };
+  const pendingUpdate = useRef(false);
+  const schedule = () => {
+    if (pendingUpdate.current) return;
+    pendingUpdate.current = true;
+    raf.current = requestAnimationFrame(() => { raf.current = null; pendingUpdate.current = false; force(); });
+  };
 
   const [title, setTitle] = useState("Session");
   const [busy, setBusy] = useState(false);
@@ -59,8 +67,23 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   const [formatMode, setFormatMode] = useState<string | null>(null);
   const [toolsDisabled, setToolsDisabled] = useState(false);
   const [offline, setOffline] = useState(!navigator.onLine);
+  const [visibleCount, setVisibleCount] = useState(30);
+  const prevScrollHeight = useRef<number | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+
+  const loadEarlier = () => {
+    prevScrollHeight.current = contentRef.current?.scrollHeight ?? null;
+    setVisibleCount((v) => v + 100);
+  };
+  // Keep the viewport anchored on the same message after older ones render above it.
+  useLayoutEffect(() => {
+    if (prevScrollHeight.current != null) {
+      const c = contentRef.current;
+      if (c) c.scrollTop += c.scrollHeight - prevScrollHeight.current;
+      prevScrollHeight.current = null;
+    }
+  }, [visibleCount]);
 
   const ensure = (messageID: string): Group => {
     let g = msgs.current.get(messageID);
@@ -164,7 +187,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         }
         if (wasBusy.current) { wasBusy.current = false; onDone(); }
       } break;
-      case "session.error": if (p.sessionID === sid) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "⚠ " + (p.error?.name || "error") + ": " + (p.error?.data?.message || "") } as any); setBusy(false); schedule(); } break;
+      case "session.error": if (p.sessionID === sid) { log.error("chat", "session error: " + (p.error?.name || "unknown"), p.error?.data); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "⚠ " + (p.error?.name || "error") + ": " + (p.error?.data?.message || "") } as any); setBusy(false); schedule(); } break;
       case "permission.asked": if (p.sessionID === sid) setPerms((prev) => prev.find((x) => x.id === p.id) ? prev : [...prev, p]); break;
       case "permission.replied": setPerms((prev) => prev.filter((x) => x.id !== (p.id || p.permissionID))); break;
       case "question.asked": if (p.sessionID === sid) setQuestions((prev) => prev.find((x) => x.id === p.id) ? prev : [...prev, p]); break;
@@ -187,11 +210,14 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         const lastA: any = hist.map((m) => m.info).filter((m: any) => m.role === "assistant" && m.modelID).pop();
         setModel(lastA ? { providerID: lastA.providerID, modelID: lastA.modelID } : defaultModel(prov));
         if (lastA?.agent) setAgent(lastA.agent);
+        setVisibleCount(30);
         force();
         checkWedged();
+        requestAnimationFrame(() => { const c = contentRef.current; if (c) c.scrollTop = c.scrollHeight; });
         api.session(dir, sid).then((s) => s?.title && setTitle(s.title)).catch(() => {});
       } catch (e: any) {
-        ensure("load_err").parts.push({ id: "e", type: "text", text: "Failed to load: " + (e.message || e) } as any); force();
+        log.error("chat", "session load failed", e?.message || e);
+        ensure("load_err").parts.push({ id: "e", type: "text", text: "Failed to load: " + friendlyError(e) } as any); force();
       }
       stop = streamEvents(dir, handleEvent);
     })();
@@ -214,35 +240,71 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     return () => { removeEventListener("online", on); removeEventListener("offline", off); };
   }, []);
 
+  // Refetch the transcript and reconcile the busy spinner. The live event stream
+  // only carries FUTURE events, so a session.idle that fired while we were
+  // backgrounded or mid-reconnect is gone — without this resync the spinner would
+  // be stuck on "working" forever even though the turn already finished.
+  const reconcileSession = async () => {
+    try {
+      const hist = await api.messages(dir, sid);
+      const newMap = new Map<string, Group>();
+      for (const m of hist) newMap.set(m.info.id, { info: m.info, parts: m.parts || [] });
+      msgs.current = newMap;
+      const last = hist.map((m) => m.info).filter((m: any) => m.role === "assistant").pop() as any;
+      if (last?.completed) { setBusy(false); wasBusy.current = false; }
+      force();
+    } catch { /* ignore */ }
+  };
+
   useEffect(() => {
-    const onVis = async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const hist = await api.messages(dir, sid);
-        const newMap = new Map<string, Group>();
-        for (const m of hist) newMap.set(m.info.id, { info: m.info, parts: m.parts || [] });
-        msgs.current = newMap;
-        const last = hist.map((m) => m.info).filter((m: any) => m.role === "assistant").pop() as any;
-        if (last?.completed) setBusy(false);
-        force();
-      } catch { /* ignore */ }
-    };
+    const onVis = () => { if (document.visibilityState === "visible") reconcileSession(); };
     document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
+    // The transport re-arms the SSE subscription on reconnect, but events missed
+    // during the outage are lost — resync once the link is back.
+    const offState = onStateChange((s) => { if (s === "connected") reconcileSession(); });
+    return () => { document.removeEventListener("visibilitychange", onVis); offState(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dir, sid]);
+
+  const compressImage = (dataUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1024;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { resolve(dataUrl); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.6));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  };
 
   const pickFile = async () => {
     try {
       const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
       const image = await Camera.getPhoto({ resultType: CameraResultType.DataUrl, source: CameraSource.Prompt, quality: 80 });
-      if (image.dataUrl) setAttachments(prev => [...prev, { name: "image.jpg", dataUrl: image.dataUrl!, mime: "image/jpeg" }]);
+      if (image.dataUrl) {
+        const compressed = await compressImage(image.dataUrl);
+        setAttachments(prev => [...prev, { name: "image.jpg", dataUrl: compressed, mime: "image/jpeg" }]);
+      }
     } catch { /* cancelled */ }
   };
 
   const send = async () => {
-    const text = input.trim(); if (!text || busy || !model) return;
+    const text = input.trim();
+    const files = attachments;
+    if ((!text && !files.length) || busy || !model) return;
     setInput(""); if (taRef.current) taRef.current.style.height = "auto";
-    setPending(text); setBusy(true); wasBusy.current = true;
+    setPending(text || "🖼 image"); setBusy(true); wasBusy.current = true;
     setAttachments([]);
     haptic();
     try {
@@ -259,16 +321,18 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
       if (cmdName) {
         try { await api.runCommand(dir, sid, cmdName, cmdArgs); } catch (e: any) {
           if (/Failed to fetch|NetworkError|aborted/i.test(e.message)) {
+            log.warn("chat", "connection blip on command send", e?.message || e);
             ensure("net_warn_" + Date.now()).parts.push({ id: "w", type: "text", text: "⚠ Connection blip — reply will appear on reconnect" } as any); force();
           } else { throw e; }
         }
       } else {
-        const ok = await api.promptAsync(dir, sid, model, agent, text, variant, sysPrompt || null);
+        const ok = await api.promptAsync(dir, sid, model, agent, text, variant, sysPrompt || null, files.length ? files : null, formatMode, toolsDisabled);
         if (!ok) {
+          log.warn("chat", "promptAsync returned false — connection blip");
           ensure("net_warn_" + Date.now()).parts.push({ id: "w", type: "text", text: "⚠ Connection blip — reply will appear on reconnect" } as any); force();
         }
       }
-    } catch (e: any) { ensure("send_err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Send failed: " + (e.message || e) } as any); force(); }
+    } catch (e: any) { log.error("chat", "send failed", e?.message || e); ensure("send_err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Send failed: " + friendlyError(e) } as any); force(); }
   };
   const abort = async () => { try { await api.abort(dir, sid); } catch { /* */ } setBusy(false); };
   const respond = async (id: string, r: "once" | "always" | "reject") => {
@@ -288,20 +352,20 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
     try {
       const s = await api.forkSession(dir, sid);
       location.hash = "#/p/" + b64uEnc(dir) + "/s/" + s.id;
-    } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Fork failed: " + (e.message || e) } as any); force(); }
+    } catch (e: any) { log.error("chat", "fork failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Fork failed: " + friendlyError(e) } as any); force(); }
   };
   const compactSession = async () => {
-    try { await api.compactSession(dir, sid); } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Compact failed: " + (e.message || e) } as any); force(); }
+    try { await api.compactSession(dir, sid); } catch (e: any) { log.error("chat", "compact failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Compact failed: " + friendlyError(e) } as any); force(); }
   };
   const shareSession = async () => {
     try {
       const r = await api.shareSession(dir, sid);
       if (r?.url) { await navigator.clipboard.writeText(r.url); ensure("info_" + Date.now()).parts.push({ id: "i", type: "text", text: "Link copied to clipboard" } as any); force(); }
-    } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Share failed: " + (e.message || e) } as any); force(); }
+    } catch (e: any) { log.error("chat", "share failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Share failed: " + friendlyError(e) } as any); force(); }
   };
   const revertTo = async (messageID: string) => {
     setBusy(true); wasBusy.current = true;
-    try { await api.revertSession(dir, sid, messageID); } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Revert failed: " + (e.message || e) } as any); force(); }
+    try { await api.revertSession(dir, sid, messageID); } catch (e: any) { log.error("chat", "revert failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Revert failed: " + friendlyError(e) } as any); force(); }
     const hist = await api.messages(dir, sid);
     msgs.current = new Map();
     for (const m of hist) msgs.current.set(m.info.id, { info: m.info, parts: m.parts || [] });
@@ -309,6 +373,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   };
 
   const groups = [...msgs.current.values()].sort((a, b) => (a.info.time?.created || 0) - (b.info.time?.created || 0));
+  const hiddenCount = Math.max(0, groups.length - visibleCount);
+  const shownGroups = hiddenCount > 0 ? groups.slice(hiddenCount) : groups;
   const modelLabel = model?.modelID || "model";
   const currentModelVariants = (() => {
     if (!model || !providerConfig.length) return {};
@@ -345,7 +411,12 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
       <TodoPanel dir={dir} sid={sid} />
 
       <div className="msg-list" ref={contentRef}>
-        {groups.map((g) => (
+        {hiddenCount > 0 && (
+          <button className="load-earlier" onClick={loadEarlier}>
+            Show earlier messages ({hiddenCount})
+          </button>
+        )}
+        {shownGroups.map((g) => (
           <div key={g.info.id} className="msg-group">
             <MessageView group={g} onRevert={revertTo} />
           </div>
@@ -363,7 +434,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         {busy && !pending && (
           <div className="msg-group">
             <div className="msg-row assistant">
-              <div className="msg-avatar assistant">oc</div>
+              <div className="msg-avatar assistant" style={{ overflow: "hidden" }}><Mark size={28} /></div>
               <div className="msg-block">
                 <div className="typing"><span /><span /><span /></div>
               </div>
@@ -402,11 +473,20 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
               <b>{variant || Object.keys(currentModelVariants)[0]}</b>
             </button>
           )}
+          <button
+            className={"pill" + (showAdvanced || sysPrompt || formatMode || toolsDisabled ? " pill-active" : "")}
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            aria-expanded={showAdvanced}
+          >
+            <Icon name="settings" size={13} strokeWidth={2} />
+            <b>Advanced</b>
+            <Icon name={showAdvanced ? "chevronUp" : "chevronDown"} size={12} strokeWidth={2.2} />
+          </button>
         </div>
         <CommandMenu commands={commands} value={input} onPick={(name) => { setInput("/" + name + " "); taRef.current?.focus(); }} />
-        {busy && <div className="statusline"><div className="spinner" /><span>{t("chat.working")}</span></div>}
+        {busy && <WorkingHorse />}
         {showAdvanced && (
-          <div style={{ padding: "4px 2px 8px", display: "flex", flexDirection: "column", gap: 6 }}>
+          <div className="advanced-panel">
             <textarea className="sysinput" rows={2} placeholder="System prompt override…" value={sysPrompt}
               onChange={(e) => setSysPrompt(e.target.value)} />
             <div style={{ display: "flex", gap: 6 }}>
@@ -421,10 +501,6 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
             </div>
           </div>
         )}
-        <div className="advanced-toggle" onClick={() => setShowAdvanced(!showAdvanced)}>
-          <Icon name={showAdvanced ? "chevronUp" : "chevronDown"} size={12} strokeWidth={2.2} />
-          <span>{showAdvanced ? "hide" : "advanced"}</span>
-        </div>
         {attachments.length > 0 && (
           <div className="att-preview">
             {attachments.map((a, i) => (
@@ -487,7 +563,7 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
             <div className="opt" onClick={async () => {
               setSheet(null);
               const cmd = prompt("Shell command:");
-              if (cmd) { setBusy(true); wasBusy.current = true; try { await api.shell(dir, sid, cmd); } catch (e: any) { ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Shell failed: " + (e.message || e) } as any); setBusy(false); force(); } }
+              if (cmd) { setBusy(true); wasBusy.current = true; try { await api.shell(dir, sid, cmd); } catch (e: any) { log.error("chat", "shell failed", e?.message || e); ensure("err_" + Date.now()).parts.push({ id: "e", type: "text", text: "Shell failed: " + friendlyError(e) } as any); setBusy(false); force(); } }
             }}>
               <span className="opt-icon"><Icon name="shell" size={18} strokeWidth={1.8} /></span>
               <span className="opt-label">Run shell command</span>

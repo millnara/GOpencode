@@ -54,6 +54,7 @@ func onReady(gw *Gateway, cfg *Config, ipMon *IPMonitor, onRestart func(Config))
 
 	mPairing := systray.AddMenuItem("Show pairing QR", "Display QR code for phone pairing")
 	mSettings := systray.AddMenuItem("Settings", "Configure gateway")
+	mPhrases := systray.AddMenuItem("Working phrases…", "Edit the phrases shown on the phone while the AI works")
 
 	systray.AddSeparator()
 
@@ -92,6 +93,9 @@ func onReady(gw *Gateway, cfg *Config, ipMon *IPMonitor, onRestart func(Config))
 
 			case <-mSettings.ClickedCh:
 				showSettingsWindow(cfg, ipMon, onRestart)
+
+			case <-mPhrases.ClickedCh:
+				showPhrasesWindow(gw, cfg)
 
 			case <-mAutoStart.ClickedCh:
 				newVal := !cfg.AutoStart

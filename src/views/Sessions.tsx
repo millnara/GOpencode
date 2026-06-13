@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import type { Session } from "../lib/types";
 import { b64uEnc, leaf, timeAgo } from "../lib/util";
 import { t } from "../lib/i18n";
+import { log, friendlyError } from "../lib/log";
 
 export default function Sessions({ dir }: { dir: string }) {
   const [sessions, setSessions] = useState<Session[] | null>(null);
@@ -12,7 +13,7 @@ export default function Sessions({ dir }: { dir: string }) {
 
   const load = () => api.sessions(dir)
     .then(ss => setSessions(ss.filter(s => !s.parentID).sort((a, b) => (b.time?.updated || 0) - (a.time?.updated || 0))))
-    .catch(e => setErr(String(e.message || e)));
+    .catch(e => { log.error("ui", "load sessions failed", e?.message || e); setErr(friendlyError(e)); });
   useEffect(() => { load(); }, [dir]);
 
   const create = async () => {

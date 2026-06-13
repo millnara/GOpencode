@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
-	"log"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -41,17 +41,19 @@ func showPairingWindow(gw *Gateway, cfg *Config) {
 
 		qrPayload, err := json.Marshal(pairing)
 		if err != nil {
-			log.Printf("Failed to marshal pairing: %v", err)
+			logf("Failed to marshal pairing: %v", err)
 			return
 		}
 
 		qr, err := qrcode.New(string(qrPayload), qrcode.Medium)
 		if err != nil {
-			log.Printf("Failed to generate QR: %v", err)
+			logf("Failed to generate QR: %v", err)
 			return
 		}
 
-		const qrSize = 256
+		// Big QR: the payload (endpoint list + creds) is dense, and phones scan
+		// from a monitor — small modules don't resolve.
+		const qrSize = 380
 		qrImg := qr.Image(qrSize)
 
 		showPairingWindowNative(pairing, qrImg, qrSize, accessInfo, hasTailscale)
@@ -84,7 +86,8 @@ func showPairingWindowNative(p Pairing, qrImg image.Image, qrSize int, accessInf
 	wnd := ui.NewMain(
 		ui.OptsMain().
 			Title("GOpencode - Pair Your Phone").
-			Size(ui.Dpi(480, 640)).
+			ClassIconId(2). // horse icon: rsrc puts the RT_GROUP_ICON at ID 2 (ID 1 is the image)
+			Size(ui.Dpi(480, 760)).
 			Style(co.WS_CAPTION | co.WS_SYSMENU | co.WS_CLIPCHILDREN | co.WS_BORDER | co.WS_VISIBLE | co.WS_MINIMIZEBOX | co.WS_SIZEBOX | co.WS_MAXIMIZEBOX),
 	)
 
@@ -110,7 +113,7 @@ func showPairingWindowNative(p Pairing, qrImg image.Image, qrSize int, accessInf
 	qrCtrl := ui.NewControl(
 		wnd,
 		ui.OptsControl().
-			Position(ui.Dpi(112, 64)).
+			Position(ui.Dpi(50, 64)).
 			Size(ui.Dpi(qrSize, qrSize)).
 			ClassStyle(co.CS_HREDRAW|co.CS_VREDRAW).
 			Style(co.WS_CHILD|co.WS_VISIBLE|co.WS_BORDER).
@@ -146,7 +149,7 @@ func showPairingWindowNative(p Pairing, qrImg image.Image, qrSize int, accessInf
 		wnd,
 		ui.OptsStatic().
 			Text("Connection addresses (the phone tries them in order):").
-			Position(ui.Dpi(20, 332)).
+			Position(ui.Dpi(20, 456)).
 			Size(ui.Dpi(440, 20)),
 	)
 
@@ -154,13 +157,13 @@ func showPairingWindowNative(p Pairing, qrImg image.Image, qrSize int, accessInf
 		wnd,
 		ui.OptsEdit().
 			Text(strings.Join(p.Endpoints, "\n")).
-			Position(ui.Dpi(20, 354)).
+			Position(ui.Dpi(20, 478)).
 			Width(ui.DpiX(440)).
-			Height(ui.DpiY(100)).
+			Height(ui.DpiY(90)).
 			CtrlStyle(co.ES_MULTILINE|co.ES_AUTOVSCROLL|co.ES_READONLY),
 	)
 
-	yPos := 470
+	yPos := 580
 	ui.NewStatic(
 		wnd,
 		ui.OptsStatic().
@@ -209,6 +212,7 @@ func showSettingsWindow(cfg *Config, ipMon *IPMonitor, onRestart func(Config)) {
 		wnd := ui.NewMain(
 			ui.OptsMain().
 				Title("GOpencode - Settings").
+				ClassIconId(2). // horse icon: rsrc puts the RT_GROUP_ICON at ID 2 (ID 1 is the image)
 				Size(ui.Dpi(640, 560)).
 				Style(co.WS_CAPTION | co.WS_SYSMENU | co.WS_CLIPCHILDREN | co.WS_BORDER | co.WS_VISIBLE | co.WS_MINIMIZEBOX | co.WS_SIZEBOX | co.WS_MAXIMIZEBOX),
 		)
@@ -427,6 +431,201 @@ func showSettingsWindow(cfg *Config, ipMon *IPMonitor, onRestart func(Config)) {
 
 		wnd.RunAsMain()
 	}()
+}
+
+// showPhrasesWindow edits the working-indicator phrase set: one phrase per
+// line, ":" for linked lines. Saving persists to config and pushes to the
+// connected phone; Import/Export read/write a JSON set file.
+func showPhrasesWindow(gw *Gateway, cfg *Config) {
+	go func() {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+
+		wnd := ui.NewMain(
+			ui.OptsMain().
+				Title("GOpencode - Working Phrases").
+				ClassIconId(2).
+				Size(ui.Dpi(560, 520)).
+				Style(co.WS_CAPTION | co.WS_SYSMENU | co.WS_CLIPCHILDREN | co.WS_BORDER | co.WS_VISIBLE | co.WS_MINIMIZEBOX | co.WS_SIZEBOX | co.WS_MAXIMIZEBOX),
+		)
+
+		y := 14
+		ui.NewStatic(wnd, ui.OptsStatic().
+			Text("Phrases shown on the phone while the AI is working (picked at random).").
+			Position(ui.Dpi(20, y)).Size(ui.Dpi(520, 18)))
+		y += 22
+		ui.NewStatic(wnd, ui.OptsStatic().
+			Text("One phrase per line.  Use ':' for linked lines that type one after another.").
+			Position(ui.Dpi(20, y)).Size(ui.Dpi(520, 18)))
+		y += 28
+
+		ui.NewStatic(wnd, ui.OptsStatic().Text("Set name:").Position(ui.Dpi(20, y+3)).Size(ui.Dpi(64, 18)))
+		nameEdit := ui.NewEdit(wnd, ui.OptsEdit().Text(cfg.PhrasesName).Position(ui.Dpi(88, y)).Width(ui.DpiX(300)))
+		y += 34
+
+		phrasesEdit := ui.NewEdit(wnd, ui.OptsEdit().
+			Text(strings.Join(cfg.Phrases, "\r\n")).
+			Position(ui.Dpi(20, y)).
+			Width(ui.DpiX(520)).
+			Height(ui.DpiY(270)).
+			CtrlStyle(co.ES_MULTILINE|co.ES_AUTOVSCROLL|co.ES_WANTRETURN))
+		y += 284
+
+		importBtn := ui.NewButton(wnd, ui.OptsButton().Text("&Import…").Position(ui.Dpi(20, y)).Width(ui.DpiX(100)).Height(ui.DpiY(30)))
+		exportBtn := ui.NewButton(wnd, ui.OptsButton().Text("&Export…").Position(ui.Dpi(128, y)).Width(ui.DpiX(100)).Height(ui.DpiY(30)))
+		saveBtn := ui.NewButton(wnd, ui.OptsButton().Text("&Save && send").Position(ui.Dpi(326, y)).Width(ui.DpiX(116)).Height(ui.DpiY(30)))
+		closeBtn := ui.NewButton(wnd, ui.OptsButton().Text("&Close").Position(ui.Dpi(450, y)).Width(ui.DpiX(90)).Height(ui.DpiY(30)))
+
+		parse := func() (string, []string) {
+			name := strings.TrimSpace(nameEdit.Text())
+			if name == "" {
+				name = "Set"
+			}
+			raw := strings.ReplaceAll(phrasesEdit.Text(), "\r\n", "\n")
+			var out []string
+			for _, ln := range strings.Split(raw, "\n") {
+				ln = strings.TrimRight(ln, " \t")
+				if strings.TrimSpace(ln) != "" {
+					out = append(out, ln)
+				}
+			}
+			return name, out
+		}
+
+		importBtn.On().BnClicked(func() {
+			path, ok := pickFile(wnd.Hwnd(), false, "")
+			if !ok {
+				return
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				ui.MsgError(wnd, "Import failed", "Could not read the file:", err.Error())
+				return
+			}
+			var set struct {
+				Name    string   `json:"name"`
+				Phrases []string `json:"phrases"`
+			}
+			if err := json.Unmarshal(data, &set); err != nil || len(set.Phrases) == 0 {
+				ui.MsgError(wnd, "Import failed", "That isn't a valid GOpencode phrase set.", "")
+				return
+			}
+			if set.Name != "" {
+				nameEdit.SetText(set.Name)
+			}
+			phrasesEdit.SetText(strings.Join(set.Phrases, "\r\n"))
+		})
+
+		exportBtn.On().BnClicked(func() {
+			name, phrases := parse()
+			path, ok := pickFile(wnd.Hwnd(), true, sanitizeFileName(name)+".json")
+			if !ok {
+				return
+			}
+			data, _ := json.MarshalIndent(map[string]interface{}{"name": name, "phrases": phrases}, "", "  ")
+			if err := os.WriteFile(path, data, 0600); err != nil {
+				ui.MsgError(wnd, "Export failed", "Could not write the file:", err.Error())
+				return
+			}
+			ui.MsgOk(wnd, "Exported", "Saved "+strconv.Itoa(len(phrases))+" phrases to:", path)
+		})
+
+		saveBtn.On().BnClicked(func() {
+			name, phrases := parse()
+			if len(phrases) == 0 {
+				ui.MsgError(wnd, "No phrases", "Add at least one phrase.", "")
+				return
+			}
+			newCfg := *cfg
+			newCfg.PhrasesName = name
+			newCfg.Phrases = phrases
+			if err := saveConfig(newCfg); err != nil {
+				ui.MsgError(wnd, "Save failed", "Could not save config:", err.Error())
+				return
+			}
+			*cfg = newCfg
+			if gw != nil {
+				gw.SetPhrases(name, phrases)
+			}
+			ui.MsgOk(wnd, "Saved", "Saved "+strconv.Itoa(len(phrases))+" phrases.", "Sent to the phone if it's connected.")
+		})
+
+		closeBtn.On().BnClicked(func() { wnd.Hwnd().DestroyWindow() })
+
+		wnd.RunAsMain()
+	}()
+}
+
+// pickFile shows the native open/save dialog filtered to JSON, returning the
+// chosen filesystem path. save=true uses the Save dialog with overwrite prompt.
+func pickFile(owner win.HWND, save bool, defName string) (string, bool) {
+	already, _ := win.CoInitializeEx(co.COINIT_APARTMENTTHREADED | co.COINIT_DISABLE_OLE1DDE)
+	if !already {
+		defer win.CoUninitialize()
+	}
+	rel := win.NewOleReleaser()
+	defer rel.Release()
+
+	var fd *win.IFileDialog
+	if save {
+		var fsd *win.IFileSaveDialog
+		if err := win.CoCreateInstance(rel, &co.CLSID_FileSaveDialog, nil, co.CLSCTX_INPROC_SERVER, &fsd); err != nil {
+			return "", false
+		}
+		fd = &fsd.IFileDialog
+	} else {
+		var fod *win.IFileOpenDialog
+		if err := win.CoCreateInstance(rel, &co.CLSID_FileOpenDialog, nil, co.CLSCTX_INPROC_SERVER, &fod); err != nil {
+			return "", false
+		}
+		fd = &fod.IFileDialog
+	}
+
+	opts, _ := fd.GetOptions()
+	opts |= co.FOS_FORCEFILESYSTEM
+	if save {
+		opts |= co.FOS_OVERWRITEPROMPT
+	} else {
+		opts |= co.FOS_FILEMUSTEXIST
+	}
+	fd.SetOptions(opts)
+	fd.SetFileTypes([]win.COMDLG_FILTERSPEC{
+		{Name: "GOpencode phrase set (*.json)", Spec: "*.json"},
+		{Name: "All files (*.*)", Spec: "*.*"},
+	})
+	fd.SetFileTypeIndex(1)
+	fd.SetDefaultExtension("json")
+	if defName != "" {
+		fd.SetFileName(defName)
+	}
+
+	ok, _ := fd.Show(owner)
+	if !ok {
+		return "", false
+	}
+	item, err := fd.GetResult(rel)
+	if err != nil {
+		return "", false
+	}
+	path, err := item.GetDisplayName(co.SIGDN_FILESYSPATH)
+	if err != nil {
+		return "", false
+	}
+	return path, true
+}
+
+// sanitizeFileName makes a phrase-set name safe for a default file name.
+func sanitizeFileName(s string) string {
+	if s == "" {
+		return "phrases"
+	}
+	repl := func(r rune) rune {
+		if strings.ContainsRune(`\/:*?"<>|`, r) {
+			return '_'
+		}
+		return r
+	}
+	return strings.Map(repl, s)
 }
 
 func buildNetworkText(cfg *Config) string {

@@ -1,34 +1,23 @@
 import type { CSSProperties } from "react";
+import horse from "../assets/horse.png";
 
 type MarkProps = {
   size?: number;
   style?: CSSProperties;
   className?: string;
-  strokeWidth?: number;
-  gradientFrom?: string;
-  gradientTo?: string;
 };
 
-const Mark = ({ size = 32, style, className, strokeWidth = 9, gradientFrom = "#4f6cff", gradientTo = "#3d57e0" }: MarkProps) => (
-  <svg
-    viewBox="0 0 64 64"
+const Mark = ({ size = 32, style, className }: MarkProps) => (
+  <img
+    src={horse}
     width={size}
     height={size}
-    style={style}
+    style={{ borderRadius: "50%", display: "block", ...style }}
     className={className}
+    alt=""
     aria-hidden="true"
-  >
-    <defs>
-      <linearGradient id="gmark-grad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stopColor={gradientFrom} />
-        <stop offset="1" stopColor={gradientTo} />
-      </linearGradient>
-    </defs>
-    <g stroke="url(#gmark-grad)" strokeWidth={strokeWidth} fill="none" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M 50 19 A 22 22 0 1 0 50 45" />
-      <path d="M 32 32 L 50 32" />
-    </g>
-  </svg>
+    draggable={false}
+  />
 );
 
 type WordmarkProps = MarkProps & {
@@ -42,9 +31,6 @@ export default function Logo({
   textColor = "currentColor",
   style,
   className,
-  strokeWidth,
-  gradientFrom,
-  gradientTo,
 }: WordmarkProps) {
   return (
     <span
@@ -58,12 +44,7 @@ export default function Logo({
       }}
       className={className}
     >
-      <Mark
-        size={size}
-        strokeWidth={strokeWidth}
-        gradientFrom={gradientFrom}
-        gradientTo={gradientTo}
-      />
+      <Mark size={size} />
       {showText && (
         <span
           style={{

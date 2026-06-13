@@ -8,7 +8,7 @@ Unicode true
 !include "LogicLib.nsh"
 
 Name "GOpencode"
-OutFile "dist\GOpencode-Setup-0.3.1.exe"
+OutFile "dist\GOpencode-Setup-0.3.2.exe"
 InstallDir "$PROGRAMFILES64\GOpencode"
 RequestExecutionLevel admin
 
@@ -265,6 +265,7 @@ Function .onInstSuccess
   SetShellVarContext all
   CreateDirectory "$APPDATA\GOpencode"
 
+  IfFileExists "$APPDATA\GOpencode\config.json" skipConfig
   FileOpen $2 "$APPDATA\GOpencode\config.json" w
   FileWrite $2 '{'
   FileWrite $2 '$\r$\n  "port": $0,'
@@ -276,6 +277,10 @@ Function .onInstSuccess
   FileWrite $2 '$\r$\n  "headless": false'
   FileWrite $2 '$\r$\n}'
   FileClose $2
+  skipConfig:
+
+  DetailPrint "Configuring Windows Firewall to allow incoming connections on port $0..."
+  nsExec::ExecToLog '"$SYSDIR\netsh.exe" advfirewall firewall add rule name="GOpencode Gateway" dir=in action=allow protocol=TCP localport=$0'
 
   ; Launch the app
   Exec '"$INSTDIR\gopencode.exe"'
@@ -294,6 +299,9 @@ Section "Uninstall"
   Delete "$SMPROGRAMS\GOpencode\GOpencode.lnk"
   RMDir "$SMPROGRAMS\GOpencode"
   Delete "$DESKTOP\GOpencode.lnk"
+
+  DetailPrint "Removing Windows Firewall rule..."
+  nsExec::ExecToLog '"$SYSDIR\netsh.exe" advfirewall firewall delete rule name="GOpencode Gateway"'
 
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GOpencode"

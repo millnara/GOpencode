@@ -1,5 +1,6 @@
 import PartView from "./PartView";
 import type { Message, Part } from "../lib/types";
+import { Mark } from "./Logo";
 
 export interface Group { info: Message; parts: Part[]; }
 
@@ -14,7 +15,7 @@ export default function MessageView({ group, onRevert }: { group: Group; onRever
   const err = (group.info as any).error;
   return (
     <div className={"msg-row " + role}>
-      {role === "assistant" && <div className="msg-avatar assistant">oc</div>}
+      {role === "assistant" && <div className="msg-avatar assistant" style={{ overflow: "hidden" }}><Mark size={28} /></div>}
       {role === "user" && <div className="msg-avatar user">Y</div>}
       <div className="msg-block">
         {role === "assistant" && <div className="role">opencode</div>}
