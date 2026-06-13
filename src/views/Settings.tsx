@@ -379,7 +379,7 @@ export default function Settings() {
 
         <div className="settings-footer">
           <Logo size={22} showText={true} textColor="var(--fade)" />
-          <div className="settings-footer-v">v0.3.0</div>
+          <div className="settings-footer-v">v0.3.0 · built for opencode v1.2.27</div>
         </div>
       </div>
 
