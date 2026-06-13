@@ -198,7 +198,6 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   };
 
   useEffect(() => {
-    let stop = () => {};
     (async () => {
       try {
         const prov = await api.providers(); setProviders(prov);
@@ -220,9 +219,8 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
         log.error("chat", "session load failed", e?.message || e);
         ensure("load_err").parts.push({ id: "e", type: "text", text: "Failed to load: " + friendlyError(e) } as any); force();
       }
-      stop = streamEvents(dir, handleEvent);
     })();
-    return () => { stop(); if (raf.current) cancelAnimationFrame(raf.current); };
+    return () => { if (raf.current) cancelAnimationFrame(raf.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dir, sid]);
 
@@ -267,10 +265,18 @@ export default function Chat({ dir, sid }: { dir: string; sid: string }) {
   useEffect(() => {
     const onVis = () => { if (document.visibilityState === "visible") reconcileSession(); };
     document.addEventListener("visibilitychange", onVis);
+    let stopSse = () => {};
     // The transport re-arms the SSE subscription on reconnect, but events missed
     // during the outage are lost — resync once the link is back.
-    const offState = onStateChange((s) => { if (s === "connected") reconcileSession(); });
-    return () => { document.removeEventListener("visibilitychange", onVis); offState(); };
+    const offState = onStateChange((s) => {
+      if (s === "connected") {
+        reconcileSession();
+        stopSse();
+        stopSse = streamEvents(dir, handleEvent);
+      }
+    });
+    if (isConnected()) stopSse = streamEvents(dir, handleEvent);
+    return () => { document.removeEventListener("visibilitychange", onVis); offState(); stopSse(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dir, sid]);
 
