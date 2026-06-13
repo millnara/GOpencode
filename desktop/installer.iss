@@ -2,7 +2,7 @@
 ; Proper setup wizard with network configuration pages
 
 #define MyAppName "GOpencode"
-#define MyAppVersion "0.3.0"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "GOpencode"
 #define MyAppExeName "gopencode.exe"
 #define MyAppURL ""

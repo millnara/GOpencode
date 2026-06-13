@@ -385,7 +385,7 @@ export default function Settings() {
           <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 4 }}>
             <Icon name="refresh" size={16} strokeWidth={2} />
             <div style={{ fontSize: 14.5, fontWeight: 500, flex: 1 }}>App Update</div>
-            <span style={{ fontSize: 11, color: "var(--fade)" }}>v0.3.0</span>
+            <span style={{ fontSize: 11, color: "var(--fade)" }}>v1.0.0</span>
           </div>
           <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 10 }}>
             Pull the latest web build from the desktop gateway — no USB needed.
@@ -419,7 +419,7 @@ export default function Settings() {
 
         <div className="settings-footer">
           <Logo size={22} showText={true} textColor="var(--fade)" />
-          <div className="settings-footer-v">v0.3.0 · built for opencode v1.2.27</div>
+          <div className="settings-footer-v">v1.0.0 · built for opencode v1.2.27</div>
         </div>
       </div>
 

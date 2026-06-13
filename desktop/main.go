@@ -36,7 +36,7 @@ func main() {
 			fmt.Print(sb.String())
 			return
 		case "-version", "--version", "-v":
-			fmt.Println("GOpencode 0.3.0")
+			fmt.Println("GOpencode 1.0.0")
 			return
 		}
 	}

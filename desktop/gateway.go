@@ -303,7 +303,7 @@ func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				g.sendPhrases(pc)
 				hash := g.appHash()
 				if hash != "" {
-					pc.writeJSON(map[string]interface{}{"type": "app-update", "hash": hash, "version": "0.3.0"})
+					pc.writeJSON(map[string]interface{}{"type": "app-update", "hash": hash, "version": "1.0.0"})
 				}
 			} else {
 				logf("ws: auth FAILED room_matches=%v pw_matches=%v", msg["room"] == g.room, msg["pw"] == g.pw)
@@ -591,7 +591,7 @@ func (g *Gateway) serveManifest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"hash":    g.appHash(),
-		"version": "0.3.0",
+		"version": "1.0.0",
 	})
 }
 

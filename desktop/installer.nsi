@@ -8,7 +8,7 @@ Unicode true
 !include "LogicLib.nsh"
 
 Name "GOpencode"
-OutFile "dist\GOpencode-Setup-0.3.2.exe"
+OutFile "dist\GOpencode-Setup-1.0.0.exe"
 InstallDir "$PROGRAMFILES64\GOpencode"
 RequestExecutionLevel admin
 
@@ -244,7 +244,7 @@ Section "Install"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "UninstallString" "$INSTDIR\uninstall.exe"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "DisplayIcon" "$INSTDIR\icon.ico"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "Publisher" "GOpencode"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "DisplayVersion" "0.3.1"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "DisplayVersion" "1.0.0"
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "NoModify" 1
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\GOpencode" "NoRepair" 1
 SectionEnd

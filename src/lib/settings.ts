@@ -14,7 +14,7 @@ export interface Conn {
 
 const KEY = "gopencode.conn";
 const ENC_KEY = "gopencode.conn.enc";
-const SALT = new TextEncoder().encode("GOpencode-v0.3.0-salt!");
+const SALT = new TextEncoder().encode("GOpencode-v1.0.0-salt!");
 const DEFAULTS: Conn = {
   baseUrl: import.meta.env.DEV ? "/api" : "",
   username: "opencode",
