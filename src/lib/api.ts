@@ -54,33 +54,37 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
 const qd = (dir: string) => "directory=" + encodeURIComponent(dir);
 
 export const api = {
-  projects: async () => {
-    const cached = cacheGet<Project[]>("projects");
-    if (cached) return cached.data;
+  projects: async (refresh?: boolean) => {
+    if (!refresh) { const cached = cacheGet<Project[]>("projects"); if (cached) return cached.data; }
     const data = await req<Project[]>("/project");
     cacheSet("projects", data);
     return data;
   },
-  sessions: async (dir: string) => {
-    const cached = cacheGet<Session[]>("sessions:" + dir);
-    if (cached) return cached.data;
+  sessions: async (dir: string, refresh?: boolean) => {
+    if (!refresh) { const cached = cacheGet<Session[]>("sessions:" + dir); if (cached) return cached.data; }
     const data = await req<Session[]>(`/session?${qd(dir)}`);
     cacheSet("sessions:" + dir, data);
     return data;
   },
-  createSession: (dir: string, title?: string) =>
-    req<Session>(`/session?${qd(dir)}`, { method: "POST", body: JSON.stringify(title ? { title } : {}) }),
+  createSession: (dir: string, title?: string) => {
+    cacheSet("sessions:" + dir, null); // invalidate
+    return req<Session>(`/session?${qd(dir)}`, { method: "POST", body: JSON.stringify(title ? { title } : {}) });
+  },
   session: (dir: string, id: string) => req<Session>(`/session/${id}?${qd(dir)}`),
-  messages: async (dir: string, id: string) => {
-    const cached = cacheGet<MessageWithParts[]>("msgs:" + dir + ":" + id);
-    if (cached) return cached.data;
+  messages: async (dir: string, id: string, refresh?: boolean) => {
+    if (!refresh) { const cached = cacheGet<MessageWithParts[]>("msgs:" + dir + ":" + id); if (cached) return cached.data; }
     const data = await req<MessageWithParts[]>(`/session/${id}/message?${qd(dir)}`);
     cacheSet("msgs:" + dir + ":" + id, data);
     return data;
   },
-  deleteSession: (dir: string, id: string) => req(`/session/${id}?${qd(dir)}`, { method: "DELETE" }),
-  updateSession: (dir: string, id: string, patch: Record<string, any>) =>
-    req<Session>(`/session/${id}?${qd(dir)}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteSession: async (dir: string, id: string) => {
+    cacheSet("sessions:" + dir, null);
+    return req(`/session/${id}?${qd(dir)}`, { method: "DELETE" });
+  },
+  updateSession: async (dir: string, id: string, patch: Record<string, any>) => {
+    cacheSet("sessions:" + dir, null);
+    return req<Session>(`/session/${id}?${qd(dir)}`, { method: "PATCH", body: JSON.stringify(patch) });
+  },
   shareSession: (dir: string, id: string) => req<{ url: string }>(`/session/${id}/share?${qd(dir)}`, { method: "POST" }),
   forkSession: (dir: string, id: string, messageID?: string) =>
     req<Session>(`/session/${id}/fork?${qd(dir)}`, { method: "POST", body: JSON.stringify(messageID ? { messageID } : {}) }),

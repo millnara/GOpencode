@@ -139,8 +139,9 @@ export default function Sessions({ dir }: { dir: string }) {
               <span className="opt-label">Rename</span>
             </div>
             <div className="opt danger" onClick={async () => {
+              const id = sheet.id;
               setSheet(null);
-              if (await modalConfirm({ title: "Delete session?", message: "This will permanently delete this session and all its messages.", danger: true, confirmLabel: "Delete" })) deleteSession(sheet.id);
+              if (await modalConfirm({ title: "Delete session?", message: "This will permanently delete this session and all its messages.", danger: true, confirmLabel: "Delete" })) deleteSession(id);
             }}>
               <span className="opt-icon"><Icon name="delete" size={18} strokeWidth={1.8} /></span>
               <span className="opt-label">Delete session</span>
