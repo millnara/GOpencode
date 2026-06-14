@@ -1,3 +1,5 @@
+<p align="center"><img src="src/assets/horse.png" width="120" alt="GOpencode"></p>
+
 # GOpencode
 
 **Control your [opencode](https://opencode.ai) sessions from your phone.**
