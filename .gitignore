@@ -8,7 +8,9 @@ ios
 .vite
 gateway/node_modules
 desktop/gopencode.exe
+desktop/gopencode-desktop.exe
 desktop/dist
+desktop/Output
 
 # Android: track the Capacitor project, ignore build outputs + local config
 android/.gradle
@@ -24,4 +26,11 @@ android/app/src/main/assets/capacitor.plugins.json
 android/key.properties
 *.keystore
 *.exe~
-desktop/gopencode-desktop.exe
+
+# Internal / scratch
+ui_design_plans/
+docs/
+gateway/
+scripts/
+.ruff_cache/
+*.exe~
